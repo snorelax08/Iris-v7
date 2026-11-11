@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -11,6 +12,7 @@
   <link rel="stylesheet" href="polish.css" />
   <link rel="stylesheet" href="stage.css" />
 </head>
+
 <body class="phase-off">
   <header class="topbar">
     <h1 class="wordmark">Iris</h1>
@@ -21,7 +23,8 @@
         <button id="micRetry" class="pill-retry hidden" type="button">Retry</button>
       </div>
       <button id="ambientBtn" class="icon-btn" type="button" aria-label="Ambient mode" title="Ambient mode"></button>
-      <button id="diagBtn" class="icon-btn" type="button" aria-label="Diagnostics" title="Diagnostics" aria-expanded="false" aria-controls="diag"></button>
+      <button id="diagBtn" class="icon-btn" type="button" aria-label="Diagnostics" title="Diagnostics"
+        aria-expanded="false" aria-controls="diag"></button>
     </div>
   </header>
 
@@ -37,7 +40,8 @@
       <p id="phaseCaption" class="phase-caption" aria-live="polite">Connect Spotify to begin</p>
       <p id="heardText" class="heard" aria-live="polite"></p>
       <p id="stageNote" class="stage-note" aria-live="polite"></p>
-      <p id="serverNote" class="stage-note server-note hidden" aria-live="polite">Waking the server. This can take up to a minute the first time.</p>
+      <p id="serverNote" class="stage-note server-note hidden" aria-live="polite">Waking the server. This can take up to
+        a minute the first time.</p>
 
       <ol id="firstRun" class="first-run hidden" aria-label="Getting started">
         <li data-step="connect">Connect Spotify</li>
@@ -80,7 +84,8 @@
             </div>
             <div class="eq" id="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
           </div>
-          <button id="dockMeta" class="dock-meta" type="button" aria-expanded="false" aria-label="Show more playback controls">
+          <button id="dockMeta" class="dock-meta" type="button" aria-expanded="false"
+            aria-label="Show more playback controls">
             <span id="dockTitle" class="dock-title">Nothing playing</span>
             <span id="dockArtist" class="dock-artist"></span>
           </button>
@@ -140,6 +145,9 @@
   <!-- Feature flags (must load first) -->
   <script src="flags.js"></script>
 
+  <!-- Product Analytics -->
+  <script src="analytics.js"></script>
+
   <!-- Spotify Web Playback SDK -->
   <script src="https://sdk.scdn.co/spotify-player.js"></script>
 
@@ -153,4 +161,5 @@
   <script src="stage.js"></script>
   <script src="iris.js"></script>
 </body>
+
 </html>

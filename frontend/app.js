@@ -1,8 +1,43 @@
+
 document.addEventListener('DOMContentLoaded', () => {
+  const analytics = window.IrisAnalytics || {
+    capture: function () {}
+  };
+
+  const environment = ["localhost", "127.0.0.1"].includes(location.hostname)
+    ? "development"
+    : "production";
+
+  const authParams = new URLSearchParams(location.search);
+
+  analytics.capture("app_opened", {
+    app_version: "iris-v6",
+    environment,
+    speech_locale: window.AKON_SPEECH_LANG || "en-IN"
+  });
+
+  if (authParams.get("logged_in") === "true") {
+    analytics.capture("spotify_auth_succeeded", {
+      auth_method: "spotify_oauth"
+    });
+  }
+
+  const authError = authParams.get("error");
+
+  if (authError) {
+    analytics.capture("spotify_auth_failed", {
+      error_code: authError === "access_denied" ? "access_denied" : "oauth_failed"
+    });
+  }
+
+  if (authParams.has("logged_in") || authParams.has("error")) {
+    history.replaceState({}, document.title, location.pathname);
+  }
+
   const loginBtn = document.getElementById('loginBtn');
   const appDiv = document.getElementById('app');
   const micBtn = document.getElementById('micBtn');
-  const listenBtn = document.getElementById('listenBtn'); // v6: tap-to-talk (optional element)
+  const listenBtn = document.getElementById('listenBtn');
 
   const listeningStatusEl = document.getElementById('listeningStatus');
   const lastCommandEl = document.getElementById('lastCommand');
@@ -12,8 +47,61 @@ document.addEventListener('DOMContentLoaded', () => {
   const debugToggle = document.getElementById('debugToggle');
   const debugLog = document.getElementById('debugLog');
 
-  let currentVolume = 70; // fallback only; the real level is read from the SDK before relative changes
+  let currentVolume = 70;
   let volumeBeforeMute = 70;
+
+  let pendingPlayback = null;
+  let activeInputMode = "hands_free";
+
+  function createCommandId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+
+    return "cmd-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+  }
+
+  function confidenceBucket(score) {
+    if (typeof score !== "number") return "unknown";
+    if (score < 0.65) return "low";
+    if (score < 0.85) return "medium";
+    return "high";
+  }
+
+  function commandCategory(type) {
+    const categories = {
+      play_song: "song_request",
+      select_option: "song_selection",
+      reject: "reject",
+      pause: "pause",
+      resume: "resume",
+      next: "next",
+      previous: "previous",
+      volume_up: "volume_up",
+      volume_down: "volume_down",
+      volume_set: "volume_set",
+      mute: "mute",
+      unmute: "unmute"
+    };
+
+    return categories[type] || "other";
+  }
+
+  async function trackCommandAction(commandId, category, action) {
+    let success = false;
+
+    try {
+      const result = await action();
+      success = result !== false;
+      return result;
+    } finally {
+      analytics.capture("command_action_completed", {
+        command_id: commandId,
+        command_category: category,
+        success
+      });
+    }
+  }
 
   loginBtn.addEventListener('click', () => {
     window.location.href = '/auth/login';
@@ -21,22 +109,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   checkLoginStatus();
 
-  // v6 (B11): a free-tier host cold-starts in 30-60 s and answers with an error page in the
-  // meantime. Retry with backoff and say "Waking the server" instead of a dead screen.
   function serverUi(state) {
     try {
       const note = document.getElementById('serverNote');
       if (note) note.classList.toggle('hidden', state !== 'waking');
       window.dispatchEvent(new CustomEvent('iris:server', { detail: { state } }));
-    } catch (e) { /* UI only */ }
+    } catch (e) {}
   }
 
   async function checkLoginStatus(attempt = 0) {
     const retry = (window.IRIS_FLAGS || {}).coldStart !== false;
+
     try {
       const res = await fetch('/auth/status');
-      if (retry && !res.ok) throw new Error(`/auth/status returned ${res.status}`);
+
+      if (retry && !res.ok) {
+        throw new Error(`/auth/status returned ${res.status}`);
+      }
+
       const data = await res.json();
+
       if (attempt > 0) serverUi('up');
 
       if (data.logged_in) {
@@ -48,9 +140,13 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       if (retry && attempt < 7) {
         serverUi('waking');
-        setTimeout(() => checkLoginStatus(attempt + 1), Math.min(1000 * Math.pow(2, attempt), 15000));
+        setTimeout(
+          () => checkLoginStatus(attempt + 1),
+          Math.min(1000 * Math.pow(2, attempt), 15000)
+        );
         return;
       }
+
       if (retry) serverUi('down');
       console.error('Failed to check login status:', err);
     }
@@ -59,18 +155,39 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupPlayer() {
     SpotifyController.init(
       () => {
-        // Player device is ready (device id reporting to /auth/device happens
-        // inside SpotifyController itself, for the debug panel).
         listeningStatusEl.textContent = 'Player ready';
+
+        analytics.capture("player_ready", {
+          player_type: "web_playback_sdk"
+        });
       },
       (state) => {
         const track = state.track_window && state.track_window.current_track;
+
         nowPlayingEl.textContent = track
           ? `${track.name} — ${track.artists.map((a) => a.name).join(', ')}`
           : 'Nothing';
+
         playbackStatusEl.textContent = state.paused ? 'Paused' : 'Playing';
-        // UI-only side effect (album art, equalizer, keyboard pause/resume state).
-        try { window.dispatchEvent(new CustomEvent('akon:state', { detail: state })); } catch (e) { /* ignore */ }
+
+        if (
+          track &&
+          !state.paused &&
+          pendingPlayback &&
+          track.uri === pendingPlayback.uri &&
+          Date.now() - pendingPlayback.startedAt < 20000
+        ) {
+          analytics.capture("playback_started", {
+            command_id: pendingPlayback.commandId,
+            time_to_playback_ms: Date.now() - pendingPlayback.startedAt
+          });
+
+          pendingPlayback = null;
+        }
+
+        try {
+          window.dispatchEvent(new CustomEvent('akon:state', { detail: state }));
+        } catch (e) {}
       }
     );
   }
@@ -78,253 +195,571 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupVoice() {
     const voiceReady = VoiceControl.init(handleCommand);
 
-    // The button is now a manual mute, not part of the normal flow (see below).
     let voicePhase = 'off';
+    let previousPhase = 'off';
+
     window.addEventListener('akon:phase', (e) => {
       const off = e.detail && e.detail.phase === 'off';
+      const nextPhase = (e.detail && e.detail.phase) || 'idle';
+
       micBtn.textContent = off ? 'Turn on microphone' : 'Mute microphone';
       micBtn.setAttribute('aria-pressed', String(off));
-      voicePhase = (e.detail && e.detail.phase) || 'idle';
+
+      voicePhase = nextPhase;
+
+      if (nextPhase === 'listening' && previousPhase !== 'listening') {
+        analytics.capture("voice_session_started", {
+          input_mode: activeInputMode,
+          speech_locale: window.AKON_SPEECH_LANG || "en-IN"
+        });
+      }
+
+      if (previousPhase === 'listening' && nextPhase !== 'listening') {
+        analytics.capture("voice_session_ended", {
+          end_reason: nextPhase
+        });
+
+        activeInputMode = "hands_free";
+      }
+
       if (listenBtn) {
         const listening = voicePhase === 'listening';
-        listenBtn.textContent = listening ? 'Listening\u2026 (tap to cancel)' : 'Start listening';
+
+        listenBtn.textContent = listening
+          ? 'Listening… (tap to cancel)'
+          : 'Start listening';
+
         listenBtn.setAttribute('aria-pressed', String(listening));
       }
+
+      previousPhase = nextPhase;
     });
 
-    // v6 (B8): tap-to-talk. The Start listening button, a tap on the eye and the "L" key all
-    // send `iris:listen`; a second tap while listening cancels. No wake word needed.
     window.addEventListener('iris:listen', () => {
       try {
         if (!voiceReady || typeof VoiceControl.listenNow !== 'function') return;
-        if (voicePhase === 'listening') VoiceControl.cancelListening();
-        else VoiceControl.listenNow();
-      } catch (err) { dlog(`Start listening failed: ${err.message}`, 'warn'); }
+
+        activeInputMode = "tap_to_talk";
+
+        if (voicePhase === 'listening') {
+          VoiceControl.cancelListening();
+        } else {
+          VoiceControl.listenNow();
+        }
+      } catch (err) {
+        dlog(`Start listening failed: ${err.message}`, 'warn');
+      }
     });
+
     if (listenBtn) {
       listenBtn.addEventListener('click', (e) => {
-        window.dispatchEvent(new CustomEvent('iris:listen', { detail: { source: 'button' } }));
-        if (e.detail > 0) listenBtn.blur(); // keep Space/arrow shortcuts working after a mouse click
+        window.dispatchEvent(
+          new CustomEvent('iris:listen', { detail: { source: 'button' } })
+        );
+
+        if (e.detail > 0) listenBtn.blur();
       });
     }
+
     document.addEventListener('keydown', (e) => {
-      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || (e.key !== 'l' && e.key !== 'L')) return;
+      if (
+        e.repeat ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        (e.key !== 'l' && e.key !== 'L')
+      ) return;
+
       if (appDiv.classList.contains('hidden')) return;
+
       const tag = (e.target.tagName || '').toLowerCase();
-      if (['input', 'textarea', 'select', 'button', 'a'].includes(tag) || e.target.isContentEditable) return; // same rule as polish.js
+
+      if (
+        ['input', 'textarea', 'select', 'button', 'a'].includes(tag) ||
+        e.target.isContentEditable
+      ) return;
+
       e.preventDefault();
-      window.dispatchEvent(new CustomEvent('iris:listen', { detail: { source: 'key' } }));
+
+      window.dispatchEvent(
+        new CustomEvent('iris:listen', { detail: { source: 'key' } })
+      );
     });
 
     micBtn.addEventListener('click', () => {
       if (!voiceReady) return;
-      if (VoiceControl.isEnabled()) VoiceControl.stop();
-      else VoiceControl.start();
+
+      if (VoiceControl.isEnabled()) {
+        VoiceControl.stop();
+      } else {
+        VoiceControl.start();
+      }
     });
 
-    // Hands-free: the mic opens as soon as the app loads and stays open. Saying "Iris"
-    // is the only trigger; there is no Start/Stop click per command any more.
     if (voiceReady) VoiceControl.start();
 
-    // The old flow always began with a click, which also counted as the user gesture
-    // browsers require before audio may play (and, in some browsers, before the mic
-    // may open). With no click, the first tap/keypress anywhere does both jobs.
     const onFirstGesture = (e) => {
       if (SpotifyController.activate()) {
         window.removeEventListener('pointerdown', onFirstGesture, true);
         window.removeEventListener('keydown', onFirstGesture, true);
       }
-      if (voiceReady && VoiceControl.isBlocked() && e.target !== micBtn) VoiceControl.start();
+
+      if (
+        voiceReady &&
+        VoiceControl.isBlocked() &&
+        e.target !== micBtn
+      ) {
+        VoiceControl.start();
+      }
     };
+
     window.addEventListener('pointerdown', onFirstGesture, true);
     window.addEventListener('keydown', onFirstGesture, true);
 
     window.addEventListener('akon:autoplay-blocked', () => {
-      if (window.showToast) window.showToast('The browser blocked sound. Tap anywhere on the page to allow it.', 'warn', 7000);
+      if (window.showToast) {
+        window.showToast(
+          'The browser blocked sound. Tap anywhere on the page to allow it.',
+          'warn',
+          7000
+        );
+      }
     });
   }
 
-  const dlog = (msg, level) => window.AkonDebug && window.AkonDebug.log(msg, level);
+  const dlog = (msg, level) =>
+    window.AkonDebug && window.AkonDebug.log(msg, level);
+
   const who = (t) => `${t.name} — ${t.artists.join(', ')}`;
 
-  // Choices from the last "choose" (or runners-up from an ambiguous "play"),
-  // so "Akon option two" / "Akon wrong song" can act on them. Expires after 60 s.
-  // `current` = index of the option now playing (-1 if none), so "wrong song" moves on.
-  let pending = { options: [], current: -1, expires: 0 };
+  let pending = {
+    options: [],
+    current: -1,
+    expires: 0
+  };
+
   function setPending(options, current = -1) {
-    pending = { options: options || [], current, expires: Date.now() + 60000 };
+    pending = {
+      options: options || [],
+      current,
+      expires: Date.now() + 60000
+    };
   }
+
   function pendingOptions() {
     return Date.now() < pending.expires ? pending.options : [];
   }
 
-  // Every command bumps this. A slow song search that finishes after a newer
-  // command (e.g. "pause") must not start playing — that was a source of
-  // "random" behaviour when commands were given in quick succession.
   let commandSeq = 0;
 
-  async function playResolved(track, seq) {
+  async function playResolved(track, seq, commandId) {
     if (seq !== commandSeq) return false;
+
     try {
-      window.dispatchEvent(new CustomEvent('akon:match', {
-        detail: { name: track.name, artist: track.artists.join(', '), score: track.score, art: track.art }
-      }));
-    } catch (e) { /* ignore */ }
-    return SpotifyController.playTrack(track.uri, track.albumUri);
+      window.dispatchEvent(
+        new CustomEvent('akon:match', {
+          detail: {
+            name: track.name,
+            artist: track.artists.join(', '),
+            score: track.score,
+            art: track.art
+          }
+        })
+      );
+    } catch (e) {}
+
+    pendingPlayback = {
+      commandId,
+      uri: track.uri,
+      startedAt: Date.now()
+    };
+
+    analytics.capture("playback_attempted", {
+      command_id: commandId,
+      playback_method: "spotify_controller"
+    });
+
+    try {
+      const success = await SpotifyController.playTrack(
+        track.uri,
+        track.albumUri
+      );
+
+      if (!success) {
+        analytics.capture("playback_failed", {
+          command_id: commandId,
+          error_code: "play_request_failed",
+          playback_method: "spotify_controller"
+        });
+
+        if (pendingPlayback && pendingPlayback.commandId === commandId) {
+          pendingPlayback = null;
+        }
+      }
+
+      return success;
+    } catch (err) {
+      analytics.capture("playback_failed", {
+        command_id: commandId,
+        error_code: "play_request_error",
+        playback_method: "spotify_controller"
+      });
+
+      if (pendingPlayback && pendingPlayback.commandId === commandId) {
+        pendingPlayback = null;
+      }
+
+      throw err;
+    }
   }
 
   function resolvedUi(detail) {
-    try { window.dispatchEvent(new CustomEvent('akon:resolved', { detail })); } catch (e) { /* ignore */ }
+    try {
+      window.dispatchEvent(new CustomEvent('akon:resolved', { detail }));
+    } catch (e) {}
   }
 
-  async function resolveAndPlay(query, alternatives, implicit, seq) {
+  async function resolveAndPlay(query, alternatives, implicit, seq, commandId) {
     nowPlayingEl.textContent = `Searching: ${query}...`;
+
+    const searchStartedAt = Date.now();
+
     let result;
+
     try {
       const res = await fetch('/api/resolve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, alternatives, implicit })
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          query,
+          alternatives,
+          implicit
+        })
       });
-      if (!res.ok) throw new Error(`resolve returned ${res.status}`);
+
+      if (!res.ok) {
+        throw new Error(`resolve returned ${res.status}`);
+      }
+
       result = await res.json();
     } catch (err) {
+      analytics.capture("song_search_completed", {
+        command_id: commandId,
+        outcome: "error",
+        latency_ms: Date.now() - searchStartedAt,
+        confidence_bucket: "unknown",
+        candidate_count: 0,
+        used_llm_fallback: false
+      });
+
       dlog(`Song lookup failed: ${err.message}`, 'error');
-      if (seq === commandSeq) nowPlayingEl.textContent = 'Search failed — try again';
-      resolvedUi({ action: 'error', message: 'Search failed — try again' });
+
+      if (seq === commandSeq) {
+        nowPlayingEl.textContent = 'Search failed — try again';
+      }
+
+      resolvedUi({
+        action: 'error',
+        message: 'Search failed — try again'
+      });
+
       return;
     }
-    if (seq !== commandSeq) return; // superseded by a newer command
+
+    const candidateCount = result.action === "play"
+      ? 1 + ((result.alternatives || []).length)
+      : ((result.options || []).length);
+
+    analytics.capture("song_search_completed", {
+      command_id: commandId,
+      outcome: ["play", "choose", "not_found"].includes(result.action)
+        ? result.action
+        : "error",
+      latency_ms: Date.now() - searchStartedAt,
+      confidence_bucket: confidenceBucket(result.confidence),
+      candidate_count: candidateCount,
+      used_llm_fallback: result.source === "llm"
+    });
+
+    if (seq !== commandSeq) return;
 
     const top = (result.debug && result.debug.top) || [];
-    dlog(`Resolve "${query}" -> ${result.action} (${result.confidence}, ${result.source}, ${result.debug && result.debug.ms}ms) | ` +
-      top.slice(0, 3).map((t) => `${t.track} = ${t.score}`).join(' | '));
+
+    dlog(
+      `Resolve -> ${result.action} (${result.confidence}, ${result.source}, ${result.debug && result.debug.ms}ms) | ` +
+      top.slice(0, 3).map((t) => `${t.track} = ${t.score}`).join(' | ')
+    );
 
     if (result.action === 'play') {
-      // Numbered like the message: option one = what's playing, option two = first runner-up.
       setPending([result.track, ...result.alternatives], 0);
-      await playResolved(result.track, seq);
-      // options/alternatives are additive (v6): the "Did you mean" cards render from them.
-      resolvedUi({ action: 'play', message: result.alternatives.length ? result.message : '', options: [result.track, ...result.alternatives], alternatives: result.alternatives });
+
+      await playResolved(result.track, seq, commandId);
+
+      resolvedUi({
+        action: 'play',
+        message: result.alternatives.length ? result.message : '',
+        options: [result.track, ...result.alternatives],
+        alternatives: result.alternatives
+      });
+
       return;
     }
+
     if (result.action === 'choose') {
       setPending(result.options);
+
       nowPlayingEl.textContent = result.message;
       dlog(result.message, 'warn');
-      resolvedUi({ action: 'choose', message: result.message, options: result.options || [], alternatives: [] });
+
+      resolvedUi({
+        action: 'choose',
+        message: result.message,
+        options: result.options || [],
+        alternatives: []
+      });
+
       return;
     }
+
     setPending([]);
+
     nowPlayingEl.textContent = result.message || 'Song not found';
-    dlog(`Song not found: "${query}"`, 'warn');
-    resolvedUi({ action: 'not_found', message: result.message, options: [], alternatives: [] });
+
+    dlog('Song not found', 'warn');
+
+    resolvedUi({
+      action: 'not_found',
+      message: result.message,
+      options: [],
+      alternatives: []
+    });
   }
 
-  // v6: a tapped "Did you mean" card runs the SAME path as saying "option two" (no new logic).
   const OPTION_WORDS = ['one', 'two', 'three'];
+
   window.addEventListener('iris:select', (e) => {
     try {
       const index = e.detail && e.detail.index;
+
       if (!OPTION_WORDS[index]) return;
+
       const cmd = `option ${OPTION_WORDS[index]}`;
+
       handleCommand(cmd, `${cmd} (tapped)`, []);
-    } catch (err) { dlog(`Option tap failed: ${err.message}`, 'warn'); }
+    } catch (err) {
+      dlog(`Option tap failed: ${err.message}`, 'warn');
+    }
   });
 
   async function changeVolume(delta) {
     const current = await SpotifyController.getVolume();
+
     if (current !== null) currentVolume = current;
+
     currentVolume = Math.max(0, Math.min(100, currentVolume + delta));
-    await SpotifyController.setVolume(currentVolume);
+
+    return SpotifyController.setVolume(currentVolume);
   }
 
   async function handleCommand(command, fullTranscript, altCommands = []) {
     lastCommandEl.textContent = fullTranscript;
+
     const seq = ++commandSeq;
+    const commandId = createCommandId();
+
     const intent = AkonIntent.extractIntent(command);
+    const category = commandCategory(intent.type);
+
+    const isTapped = fullTranscript.includes("(tapped)");
+
+    analytics.capture("voice_command_received", {
+      command_id: commandId,
+      command_category: category,
+      input_mode: isTapped ? "ui_tap" : activeInputMode,
+      speech_locale: window.AKON_SPEECH_LANG || "en-IN"
+    });
+
+    analytics.capture("intent_parsed", {
+      command_id: commandId,
+      intent_type: intent.type || "unknown",
+      parse_status: intent.type && intent.type !== "unknown"
+        ? "recognized"
+        : "unrecognized"
+    });
+
     dlog(`Intent: ${JSON.stringify(intent)}`);
 
     try {
       switch (intent.type) {
         case 'play_song': {
-          // Alternatives only make sense if they are also song requests.
           const alts = altCommands
             .map((a) => AkonIntent.extractIntent(a))
             .filter((i) => i.type === 'play_song')
             .map((i) => i.query);
-          await resolveAndPlay(intent.query, alts, intent.implicit, seq);
+
+          await resolveAndPlay(
+            intent.query,
+            alts,
+            intent.implicit,
+            seq,
+            commandId
+          );
+
           break;
         }
+
         case 'select_option': {
+          analytics.capture("song_option_selected", {
+            command_id: commandId,
+            selection_position: intent.index + 1,
+            selection_method: isTapped ? "tap" : "voice"
+          });
+
           const opts = pendingOptions();
+
           if (opts[intent.index]) {
             pending.current = intent.index;
-            await playResolved(opts[intent.index], seq);
+            await playResolved(opts[intent.index], seq, commandId);
           } else {
-            // No options on screen: "play one" is the U2 song, not a menu choice.
-            await resolveAndPlay(intent.fallbackQuery, [], false, seq);
+            await resolveAndPlay(
+              intent.fallbackQuery,
+              [],
+              false,
+              seq,
+              commandId
+            );
           }
+
           break;
         }
+
         case 'reject': {
           const opts = pendingOptions();
           const nextIdx = pending.current + 1;
+
           if (opts[nextIdx]) {
+            analytics.capture("song_option_selected", {
+              command_id: commandId,
+              selection_position: nextIdx + 1,
+              selection_method: "voice"
+            });
+
             pending.current = nextIdx;
-            await playResolved(opts[nextIdx], seq);
+
+            await playResolved(opts[nextIdx], seq, commandId);
           } else {
-            await SpotifyController.nextTrack();
+            await trackCommandAction(
+              commandId,
+              "next",
+              () => SpotifyController.nextTrack()
+            );
           }
+
           break;
         }
+
         case 'pause':
-          await SpotifyController.pause();
+          await trackCommandAction(
+            commandId,
+            "pause",
+            () => SpotifyController.pause()
+          );
           break;
+
         case 'resume':
-          await SpotifyController.resume();
+          await trackCommandAction(
+            commandId,
+            "resume",
+            () => SpotifyController.resume()
+          );
           break;
+
         case 'next':
-          await SpotifyController.nextTrack();
+          await trackCommandAction(
+            commandId,
+            "next",
+            () => SpotifyController.nextTrack()
+          );
           break;
+
         case 'previous':
-          await SpotifyController.previousTrack();
+          await trackCommandAction(
+            commandId,
+            "previous",
+            () => SpotifyController.previousTrack()
+          );
           break;
+
         case 'volume_up':
-          await changeVolume(intent.step || 15);
+          await trackCommandAction(
+            commandId,
+            "volume_up",
+            () => changeVolume(intent.step || 15)
+          );
           break;
+
         case 'volume_down':
-          await changeVolume(-(intent.step || 15));
+          await trackCommandAction(
+            commandId,
+            "volume_down",
+            () => changeVolume(-(intent.step || 15))
+          );
           break;
+
         case 'volume_set':
           currentVolume = intent.value;
-          await SpotifyController.setVolume(currentVolume);
+
+          await trackCommandAction(
+            commandId,
+            "volume_set",
+            () => SpotifyController.setVolume(currentVolume)
+          );
+
           break;
+
         case 'mute': {
           const v = await SpotifyController.getVolume();
+
           if (v) volumeBeforeMute = v;
-          await SpotifyController.setVolume(0);
+
+          await trackCommandAction(
+            commandId,
+            "mute",
+            () => SpotifyController.setVolume(0)
+          );
+
           break;
         }
+
         case 'unmute':
-          await SpotifyController.setVolume(volumeBeforeMute || 60);
+          await trackCommandAction(
+            commandId,
+            "unmute",
+            () => SpotifyController.setVolume(volumeBeforeMute || 60)
+          );
+
           break;
+
         default:
-          dlog(`Unrecognized command after wake word: "${command}"`, 'warn');
+          dlog(`Unrecognized command after wake word`, 'warn');
       }
     } catch (err) {
-      dlog(`Command "${command}" failed: ${err.message}`, 'error');
+      dlog(`Command failed: ${err.message}`, 'error');
     }
+
     maybeRefreshDebugPanel();
   }
 
-  // ---- Debug panel: shows server auth/device state + recent client log ----
   if (debugToggle && debugLog) {
     debugToggle.addEventListener('click', async () => {
       const isHidden = debugLog.classList.contains('hidden');
+
       if (isHidden) {
         debugLog.classList.remove('hidden');
         debugToggle.textContent = 'Hide Debug Info';
+
         await refreshDebugPanel();
       } else {
         debugLog.classList.add('hidden');
@@ -334,21 +769,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function maybeRefreshDebugPanel() {
-    if (debugLog && !debugLog.classList.contains('hidden')) refreshDebugPanel();
+    if (debugLog && !debugLog.classList.contains('hidden')) {
+      refreshDebugPanel();
+    }
   }
 
   async function refreshDebugPanel() {
     if (!debugLog) return;
 
     let serverState = {};
+
     try {
       const res = await fetch('/auth/debug');
       serverState = await res.json();
     } catch (err) {
-      serverState = { error: 'Could not reach /auth/debug' };
+      serverState = {
+        error: 'Could not reach /auth/debug'
+      };
     }
 
     const clientLines = (window.AkonDebug && window.AkonDebug.logs) || [];
+
     debugLog.textContent =
       '--- Server auth/device state ---\n' +
       JSON.stringify(serverState, null, 2) +
