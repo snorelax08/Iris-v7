@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const authParams = new URLSearchParams(location.search);
 
   analytics.capture("app_opened", {
-    app_version: "iris-v6",
+    app_version: "iris-v7",
     environment,
     speech_locale: window.AKON_SPEECH_LANG || "en-IN"
   });
