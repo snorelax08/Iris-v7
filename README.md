@@ -1,296 +1,626 @@
-# 🎙️ Akon — Voice-Controlled Music Assistant
 
-Akon listens for the wake word **"Akon"**, parses simple voice commands, and plays music
-**directly in your browser** using the **Spotify Web Playback SDK**.
+# Iris — Voice-Controlled AI Music Assistant
 
-> ⚠️ Akon only ever controls the in-browser Web Playback SDK device ("Akon Web Player").
-> It does **not** control your Spotify desktop app, phone, or any other device.
+<p align="center">
+  <img src="frontend/icon.svg" width="100" alt="Iris logo" />
+</p>
+
+<h3 align="center">
+  Your music. Your voice. Your Iris.
+</h3>
+
+<p align="center">
+  A voice-first music assistant that lets you discover, search and control Spotify playback through natural conversation.
+</p>
+
+<p align="center">
+  <b>Wake-word interaction · Hinglish song discovery · Intelligent matching · Spotify Web Playback SDK · Product Analytics</b>
+</p>
 
 ---
 
-## v6 quick start
+## Overview
 
-```bash
-npm install && npm test && npm start
+**Iris** is a browser-based, voice-controlled music assistant designed to make music interaction more natural and effortless.
+
+Instead of navigating playlists, searching manually or reaching for your phone to control playback, users can simply say what they want to hear.
+
+Say **"Iris, play Believer"**, and Iris interprets the request, searches Spotify, identifies the most relevant track and starts playback directly in the browser.
+
+Iris is built around a simple product idea:
+
+> Make existing speakers smarter through software, without requiring users to purchase dedicated smart-speaker hardware.
+
+The current prototype focuses on voice-controlled music discovery and playback. Its longer-term product vision is to evolve into a broader voice-first assistant.
+
+## Product Experience
+
+<p align="center">
+  <img src="docs/screens/iris-stage.png" width="85%" alt="Iris application interface" />
+</p>
+
+*The Stage — Iris's immersive, voice-first interface.*
+
+### Core Features
+
+| Feature | Description |
+|---|---|
+| Voice Wake Word | Activate Iris by saying "Iris". |
+| Hands-Free Listening | Listen continuously for voice commands with microphone resilience and automatic recovery. |
+| Tap-to-Talk | Activate listening by tapping the eye, using the listening button or pressing `L`. |
+| Natural Language Commands | Understand common English and Hinglish music commands. |
+| Intelligent Song Discovery | Resolve imperfect, phonetic and transliterated song requests. |
+| Confidence-Based Matching | Rank Spotify search results and avoid playing uncertain matches automatically. |
+| Alternative Suggestions | Present candidate tracks when Iris cannot confidently determine the intended song. |
+| Spotify Playback | Play music directly through the Spotify Web Playback SDK. |
+| Playback Controls | Pause, resume, skip, go back, mute and adjust volume through voice or the interface. |
+| Music Ducking | Automatically lower music volume while Iris listens, then restore it appropriately. |
+| Adaptive Interface | Visual states for idle, listening, thinking, searching, playing and errors. |
+| Diagnostics | Inspect voice activity, authentication status, playback state and search results. |
+| Product Analytics | Track activation, voice interactions, song discovery and playback outcomes through PostHog. |
+
+---
+
+## How Iris Works
+
+Iris combines browser-based speech recognition, server-side song resolution and Spotify's playback infrastructure.
+
+```mermaid
+flowchart TD
+    A["User speaks to Iris"] --> B["Wake Word Detection"]
+    B --> C["Speech Recognition"]
+    C --> D["Intent Parsing"]
+    D --> E["Song Query"]
+    E --> F["Express Backend"]
+    F --> G["Spotify Search API"]
+    G --> H["Candidate Ranking"]
+    H --> I{"Confidence Gate"}
+    I -->|High confidence| J["Resolve Track"]
+    I -->|Ambiguous| K["Offer Alternatives"]
+    I -->|No match| L["Not Found"]
+    J --> M["Spotify Web Playback SDK"]
+    K --> M
+    M --> N["Music Plays in Browser"]
+    D --> O["PostHog Product Analytics"]
+    H --> O
+    M --> O
 ```
 
-`npm test` runs the matching, contract, voice and duck tests (no network, no credentials).
-`npm run smoke` drives the real frontend in headless Chromium with fake speech and a fake
-Spotify SDK if Playwright is available (it is not added as a dependency). The UI design,
-states, events and feature flags are in [`DESIGN.md`](DESIGN.md); flip any feature off in
-`frontend/flags.js`. Real-mic checks: [`docs/MANUAL_CHECKS.md`](docs/MANUAL_CHECKS.md).
-Roll everything back with `git checkout v5-baseline`.
+### Technology Stack
 
-## 📁 Project Structure
+| Layer | Technologies |
+|---|---|
+| Frontend | HTML, CSS, JavaScript |
+| Speech Recognition | Web Speech API |
+| Backend | Node.js, Express.js |
+| Music Platform | Spotify Web API |
+| Audio Playback | Spotify Web Playback SDK |
+| Authentication | Spotify OAuth 2.0 |
+| Song Resolution | Custom query parsing, ranking and confidence scoring |
+| Optional AI Fallback | Anthropic API |
+| Product Analytics | PostHog |
+| Deployment | Render |
+| Version Control | Git and GitHub |
+| Testing | Node.js test suites, optional Playwright smoke tests |
 
+---
+
+## Voice Interaction
+
+Iris supports a range of music commands in English and common Hinglish phrasing.
+
+### Music Discovery
+
+```text
+"Iris, play Believer"
+"Iris, play Stronger by Kanye West"
+"Iris, Kesariya bajao"
+"Iris, ye tune kya kiya"
 ```
-akon/
+
+### Playback Controls
+
+| Voice Command | Expected Action |
+|---|---|
+| "Iris, pause" | Pause playback |
+| "Iris, resume" | Resume playback |
+| "Iris, next" | Play the next track |
+| "Iris, previous" | Return to the previous track |
+| "Iris, volume up" | Increase volume |
+| "Iris, volume down" | Decrease volume |
+| "Iris, volume 40" | Set volume to 40% |
+| "Iris, mute" | Mute playback |
+| "Iris, option two" | Select the second suggested track |
+
+### Handling Ambiguous Requests
+
+Iris does not simply play the first Spotify search result.
+
+Its resolution pipeline uses:
+
+- Hinglish-aware text normalization.
+- Phonetic matching for imperfect speech recognition.
+- Structured song-title and artist extraction.
+- Candidate ranking and deduplication.
+- Filtering for irrelevant results, including karaoke and tribute versions when inappropriate.
+- Confidence thresholds to decide whether to play, offer alternatives or return no match.
+- An optional LLM fallback for difficult or fragmented queries.
+
+The LLM fallback can suggest candidate titles and artists, but those candidates still pass through the matching and confidence pipeline.
+
+---
+
+## Project Architecture
+
+```text
+Iris-v7/
+│
 ├── frontend/
-│   ├── index.html      # UI (+ small hidden debug panel)
-│   ├── style.css       # Minimal styling
-│   ├── app.js           # Wires voice + Spotify together, updates UI + debug panel
-│   ├── voice.js         # Web Speech API wake-word + command listener (+ tap-to-talk, v6)
-│   ├── spotify.js       # Web Playback SDK + Web API controller (playback)
-│   ├── flags.js         # v6 feature flags (loaded first)
-│   ├── duck.js          # v6 lowers music while Iris listens
-│   ├── polish.js/.css   # v3 polish layer (toasts, art, keyboard)
-│   ├── stage.js/.css    # v6 "The Stage" UI (dock, mic pill, cards, ambient, drawer)
-│   └── iris.js          # The eye (canvas)
+│   ├── index.html
+│   ├── style.css
+│   ├── app.js
+│   ├── voice.js
+│   ├── spotify.js
+│   ├── analytics.js
+│   ├── flags.js
+│   ├── duck.js
+│   ├── polish.js
+│   ├── polish.css
+│   ├── stage.js
+│   ├── stage.css
+│   ├── iris.js
+│   ├── manifest.json
+│   └── icon.svg
+│
 ├── backend/
-│   ├── server.js        # Express server, serves frontend + mounts auth routes
-│   └── auth.js           # Spotify OAuth (login, callback, token refresh, /auth/debug)
+│   ├── server.js
+│   ├── auth.js
+│   │
+│   ├── routes/
+│   │   └── resolve.js
+│   │
+│   └── music/
+│       ├── llm.js
+│       ├── query.js
+│       ├── rank.js
+│       ├── resolver.js
+│       ├── spotifySearch.js
+│       └── text.js
+│
+├── shared/
+│   └── intent.js
+│
 ├── test/
-│   ├── matching.test.js # Credential-free unit tests for the search-matching pipeline
-│   ├── contract.test.js # v6: DOM ids, script order, events, APIs the JS depends on
-│   ├── voice.test.js    # v6: real voice.js with a fake recognizer + clock
-│   ├── duck.test.js     # v6: duck/restore rules against a fake SDK
-│   └── smoke/           # v6: optional headless-browser smoke test (npm run smoke)
-├── docs/                # v6: MANUAL_CHECKS.md, screens/
+│   ├── matching.test.js
+│   ├── contract.test.js
+│   ├── voice.test.js
+│   ├── duck.test.js
+│   └── smoke/
+│
+├── docs/
+│   └── MANUAL_CHECKS.md
+│
 ├── .env.example
+├── .gitignore
 ├── package.json
 ├── CHANGELOG.md
+├── DESIGN.md
 ├── TASKS.md
-├── DESIGN.md            # v6 tokens, states, events, flags
 ├── CLAUDE.md
 └── README.md
 ```
 
+### Important Modules
+
+| Module | Responsibility |
+|---|---|
+| `frontend/app.js` | Connects voice commands, Spotify playback and application state. |
+| `frontend/voice.js` | Wake-word detection, speech recognition, tap-to-talk and microphone recovery. |
+| `frontend/spotify.js` | Initializes the Spotify player and controls playback. |
+| `frontend/analytics.js` | Initializes PostHog and captures approved product events. |
+| `frontend/stage.js` | Drives the primary Iris interface and interaction states. |
+| `frontend/duck.js` | Handles volume reduction and restoration while listening. |
+| `frontend/flags.js` | Controls optional frontend features. |
+| `frontend/iris.js` | Renders the animated Iris eye. |
+| `backend/server.js` | Express server, static frontend hosting and API routes. |
+| `backend/auth.js` | Spotify OAuth, token refresh and authentication diagnostics. |
+| `backend/music/query.js` | Parses and normalizes music search queries. |
+| `backend/music/rank.js` | Scores and ranks candidate tracks. |
+| `backend/music/resolver.js` | Coordinates search, ranking and confidence decisions. |
+| `backend/music/llm.js` | Optional AI-assisted candidate generation. |
+| `shared/intent.js` | Shared English and Hinglish command interpretation. |
+
 ---
 
-## ✅ Requirements
+## Getting Started
 
-- Node.js 16+ and npm
-- A **Spotify Premium** account (the Web Playback SDK requires Premium — free accounts cannot stream via the SDK)
-- Google Chrome or Microsoft Edge (best Web Speech API support)
+### Requirements
 
----
+- Node.js 16 or later.
+- npm.
+- A Spotify account with Premium for Web Playback SDK music streaming.
+- A Spotify Developer application.
+- Google Chrome or Microsoft Edge.
+- A working microphone.
+- A network connection.
 
-## 🚀 Step-by-Step Setup
+### 1. Clone the Repository
 
-### 1. Create a Spotify App (to get API credentials)
+```bash
+git clone https://github.com/snorelax08/Iris-v7.git
+cd Iris-v7
+```
 
-1. Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and log in.
-2. Click **Create app**.
-3. Fill in any name/description.
-4. For **Redirect URI**, enter exactly:
-   ```
-   http://localhost:8888/auth/callback
-   ```
-5. Save. Open the app you just created, click **Settings**, and copy your **Client ID** and **Client Secret**.
-
-### 2. Install dependencies
-
-From the `akon/` project root:
+### 2. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 3. Configure environment variables
+### 3. Create a Spotify Developer Application
+
+1. Open the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
+2. Create a new application.
+3. Open its settings.
+4. Copy the Spotify Client ID and Client Secret.
+5. Register the following local redirect URI:
+
+```text
+http://127.0.0.1:8888/auth/callback
+```
+
+The redirect URI must match the value configured in your environment variables exactly.
+
+### 4. Configure Environment Variables
+
+Create a local `.env` file from `.env.example`.
+
+On macOS/Linux:
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and paste in your credentials:
+On Windows PowerShell:
 
+```powershell
+Copy-Item .env.example .env
 ```
-SPOTIFY_CLIENT_ID=paste_your_client_id_here
-SPOTIFY_CLIENT_SECRET=paste_your_client_secret_here
-SPOTIFY_REDIRECT_URI=http://localhost:8888/auth/callback
+
+Configure the following:
+
+```env
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/auth/callback
+
 PORT=8888
 ```
 
-### 4. Run the app
+Optional AI-assisted song resolution:
+
+```env
+ANTHROPIC_API_KEY=your_anthropic_api_key
+AKON_LLM_MODEL=claude-haiku-4-5
+AKON_LLM_TIMEOUT_MS=2500
+```
+
+Optional Spotify search configuration:
+
+```env
+AKON_SEARCH_LIMIT=10
+```
+
+The Anthropic configuration is optional. Iris can use its normal search and matching pipeline without it.
+
+**Never commit your actual `.env` file or private API credentials to GitHub.**
+
+### 5. Run Iris
 
 ```bash
 npm start
 ```
 
-This starts the Express backend **and** serves the frontend, all on one port.
+The Express server starts on port `8888` by default.
 
-### 5. Open it in your browser
+Open:
 
-Go to:
-
-```
-http://localhost:8888
+```text
+http://127.0.0.1:8888
 ```
 
 ### 6. Connect Spotify
 
-1. Click **Connect Spotify**.
-2. Log in and approve the permissions.
-3. You'll be redirected back — the app UI will appear once "Player ready" shows.
+1. Select **Connect Spotify**.
+2. Sign in to Spotify.
+3. Approve the requested permissions.
+4. Wait for the Spotify Web Playback SDK to initialize.
+5. Allow microphone access when prompted.
 
-### 7. Start talking to Akon
+### 7. Start Using Iris
 
-1. Click **Start Listening**.
-2. Allow microphone access when your browser prompts you.
-3. Try:
-   - **"Akon play Believer"**
-   - **"Akon pause"**
-   - **"Akon next"**
-   - **"Akon volume up"**
+Say:
 
-The very first thing Spotify plays after connecting may need one manual play/pause on the Spotify app on any device once, if Spotify hasn't handed off playback to a new device before — this is a one-time Spotify quirk, not a bug in Akon.
-
----
-
-## 🩺 Debug Panel
-
-Once connected, click **Show Debug Info** to open a small panel showing:
-- Server-side auth state: whether you're logged in, token expiry, last refresh time, last known device id, and the redirect URI the server is actually configured with — from `GET /auth/debug` (no secrets or tokens are ever included).
-- A live client-side log of recent voice commands, search matches (with scores), device-transfer attempts, and any playback errors.
-
-Use this first whenever something doesn't work — most issues (wrong redirect URI, device not active, low-confidence search match) show up here immediately.
-
-## 🧠 How Commands Work
-
-Akon listens continuously. Every time it hears speech, it checks whether the transcript contains the wake word `"akon"`. Everything **after** the wake word is treated as the command:
-
-| You say                     | Akon hears (command) | Action                          |
-|------------------------------|-----------------------|----------------------------------|
-| "Akon play Believer"         | `play believer`       | Searches Spotify, plays top result |
-| "Akon pause" / "Akon stop"   | `pause` / `stop`      | Pauses playback                  |
-| "Akon play" / "Akon resume"  | `play` / `resume`     | Resumes playback                 |
-| "Akon next" / "Akon skip"    | `next` / `skip`       | Skips to next track              |
-| "Akon previous" / "Akon back"| `previous` / `back`   | Goes to previous track           |
-| "Akon volume up"             | `volume up`           | Raises volume by 15%             |
-| "Akon volume down"           | `volume down`         | Lowers volume by 15%             |
-
----
-
-## 🔐 About Authentication & Secrets
-
-- Your Client ID/Secret live only in `.env`, which is never committed (add it to `.gitignore`).
-- The backend (`backend/auth.js`) performs the OAuth code exchange and holds the access/refresh tokens **server-side**.
-- The frontend never sees your Client Secret — it only fetches a short-lived access token from `/auth/token` when needed.
-- This starter uses simple in-memory token storage (fine for local/single-user use). For a real multi-user deployment, swap this for a session- or database-backed store.
-
----
-
-## 🛠️ Troubleshooting
-
-- **"Speech recognition is not supported"** → Use Chrome or Edge; Safari/Firefox have limited Web Speech API support.
-- **Nothing plays / "Song not found"** → Open the debug panel — the client log shows the top-3 scored candidates for your query. Double check the song name, and confirm your Spotify account is **Premium**.
-- **401 / login loop** → Make sure the Redirect URI in your `.env` matches *exactly* (including `http://`/`https://` and port) what's registered in the Spotify Dashboard. `GET /auth/debug` shows what the server thinks it's configured with.
-- **Player never shows "ready" / "Akon Web Player" missing from your devices** → Open the browser console for SDK errors (usually an invalid/expired token or a non-Premium account); the debug panel's client log also shows every playback-transfer attempt and retry.
-- **"Akon next" doesn't skip** → Should not happen after the v2 fixes below (it now calls the SDK's own `nextTrack()` directly). If it does, check the debug panel log for `SDK nextTrack() failed` — that means it fell back to the Web API path, which needs the device to be the active one; check `/auth/debug`'s `last_known_device_id`.
-
----
-
-## ✅ QA Checklist
-
-Run through this after any change, locally and again after deploying to Render.
-
-### Local
-
-```bash
-npm install
-cp .env.example .env        # fill in your real Spotify credentials
-npm start
-npm test                    # runs the search-matching unit tests (no credentials needed)
+```text
+Iris, play Believer
 ```
 
-Then in the browser at `http://localhost:8888`:
-
-1. **Connect** — Click **Connect Spotify**, approve access, confirm you land back on the app with **Player ready** shown.
-2. **Device check** — In the Spotify app (any device) or via `open.spotify.com`, confirm **"Akon Web Player"** appears in the device list once connected here. Open the debug panel and confirm `last_known_device_id` is populated.
-3. **Start Listening** — Click it, allow mic access, confirm status changes to `Listening...`.
-
-| # | Say | Expect | Where to check if it fails |
-|---|-----|--------|------------------------------|
-| 1 | "Akon play Believer" | Imagine Dragons' "Believer" starts playing within a couple seconds | Debug panel client log: search candidates + scores |
-| 2 | "Akon play Shape of You" | Ed Sheeran's "Shape of You" plays | Debug panel |
-| 3 | "Akon play ye tune kya kiya" | "Ye Tune Kya Kiya" (Javed Bashir / Pritam) plays — it is a real song title, not filler | Debug panel: `Resolve ... -> play` line with the top 3 scores |
-| 4 | "Akon play [a real song with a Hindi/Hinglish title mixed with filler words, e.g. "ye Kesariya wala gaana bajao"]" | The real title ("Kesariya") is correctly extracted and played, ignoring filler words | Debug panel — "cleaned" query shown in the search log line |
-| 5 | "Akon pause" | Playback pauses immediately | UI "Playback" field → Paused |
-| 6 | "Akon resume" (or "Akon play") | Playback resumes | UI "Playback" field → Playing |
-| 7 | "Akon next" | Moves to the **next track** — must NOT pause | UI "Now playing" changes; debug log shows "Skipped to next track via SDK" |
-| 8 | "Akon previous" | Moves to the previous track | UI "Now playing" changes back |
-| 9 | "Akon volume up" (say it twice) | Volume audibly increases | Debug log: "Volume set to X% via SDK" |
-| 10 | "Akon volume down" | Volume audibly decreases | Debug log |
-| 11 | "Akon play stronger" | Kanye West's "Stronger" plays; hint offers "option two" (Kelly Clarkson) | Hint under the mic button |
-| 12 | "Akon option two" (right after #11) | Switches to the runner-up | Now playing changes |
-| 13 | "Akon play asdf qwerty" | Nothing plays; "I couldn't find that song…" | Debug panel: `not_found` |
-| 14 | "Akon agla gaana" / "Akon awaaz badhao" | Next track / volume up | Debug panel: `Intent:` line |
-| 15 | "Akon play stronger by kanye west", then "Akon next" | Real track (not karaoke) plays; next moves to the next album track | Debug panel |
-
-**Server logs to watch** (terminal running `npm start`): `[Akon:auth] Login successful`, `[Akon:auth] Access token refreshed` (should appear automatically ~1 min before the ~60-minute token expiry if you leave it running), `[Akon:device] Frontend reported device id: ...`.
-
-### Render
-
-1. Deploy the repo (Node service, build command `npm install`, start command `npm start`).
-2. Set environment variables in the Render dashboard (see **Deployment** below), then **redeploy** — env var changes don't apply until redeploy.
-3. Add the Render HTTPS URL's `/auth/callback` to your Spotify Dashboard app's Redirect URIs.
-4. Repeat the full local checklist above against the Render URL instead of `localhost:8888`.
-5. Confirm `GET https://your-app.onrender.com/auth/debug` shows `configured_redirect_uri` matching your Render URL exactly.
+Or tap the central Iris eye to use tap-to-talk.
 
 ---
 
-## 🎨 Polish QA (v3)
+## Product Analytics — PostHog
 
-**a) Functional — must be unchanged.** Re-run the original 10 phrases in *QA Checklist* above (Believer, Shape of You, noisy Hindi-mixed phrase, pause, resume, next, previous, volume up/down). All must behave exactly as before. `npm test` must print ALL TESTS PASSED.
+Iris integrates with [PostHog](https://posthog.com/) to understand how users interact with the product.
 
-**b) Visual checks**
+The objective is to measure product behaviour and identify areas where users encounter friction.
 
-| Feature | What to look for |
+### Analytics Architecture
+
+The application uses a client-side PostHog SDK with a controlled event allowlist.
+
+Automatic page-view tracking, autocapture, page-leave capture and session recording are disabled in the current configuration.
+
+### Tracked Events
+
+| Event | Purpose |
 |---|---|
-| Login → app | "Connect Spotify" disappears; app fades in once |
-| Album art | Art of the current track appears; a music-note placeholder when idle; no broken-image icon |
-| Icons | Icons beside Connect / mic / Debug labels; mic icon turns into a stop square while listening |
-| Listening pulse | Green ring pulses on the mic button and status card while listening; stops when you stop |
-| Wake flash | Mic button flashes amber the instant you say "Akon" |
-| Chime (off) | Nothing unless `CONFIG.chime = true`; then a very short beep, and commands still work |
-| History strip | Last 5 commands as chips, newest first; "Last command" row still updates |
-| Searching skeleton | Shimmer card with "Searching: X…" right after "Akon play X"; replaced by art when found |
-| Low-confidence hint | On a poor match: "Best guess: X — Y. Say "Akon next" if that's wrong." Clears on the next command |
-| Toasts | "Song not found", "Volume 85%", errors; at most 3, auto-dismiss, status fields still update |
-| Equalizer | Bars move only while a track is playing; freeze on pause |
-| Mobile (≤520 px) | Full-width big buttons, no sideways scroll, comfortable spacing |
-| Manifest | Browser offers "Install / Add to Home Screen"; icon and name look right |
-| Keyboard | Click page background first. Space = pause/resume, → next, ← previous (same behavior as voice) |
-| Accessibility | Screen reader announces status changes; visible focus ring on Tab; reduced-motion disables animation |
-| Debug panel | Show/Hide works and still shows server state + client log |
+| `app_opened` | Tracks application launches. |
+| `spotify_auth_succeeded` | Tracks successful Spotify authentication. |
+| `spotify_auth_failed` | Tracks authentication failures. |
+| `player_ready` | Tracks successful player initialization. |
+| `voice_session_started` | Tracks the beginning of a listening session. |
+| `voice_session_ended` | Tracks when a listening session ends. |
+| `voice_command_received` | Tracks received voice commands. |
+| `intent_parsed` | Tracks intent interpretation. |
+| `song_search_completed` | Tracks song-resolution results. |
+| `song_option_selected` | Tracks alternative selection. |
+| `playback_attempted` | Tracks playback requests. |
+| `playback_started` | Tracks confirmed playback starts. |
+| `playback_failed` | Tracks playback failures. |
+| `command_action_completed` | Tracks completion of playback-control actions. |
 
-**Turning features off:** flip the switches at the top of `frontend/polish.js` (`CONFIG`).
+### Key Product Metrics
 
-## 🚢 Deployment (Render)
+The PostHog dashboard is designed to measure:
 
-1. Push this repo to GitHub/GitLab.
-2. In Render, create a **New Web Service** from the repo.
-   - **Build command:** `npm install`
-   - **Start command:** `npm start`
-3. Under **Environment**, add:
-   ```
-   SPOTIFY_CLIENT_ID=your_spotify_client_id
-   SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-   SPOTIFY_REDIRECT_URI=https://your-app-name.onrender.com/auth/callback
-   ```
-   (Leave `PORT` unset — Render provides it automatically, and `server.js` already reads `process.env.PORT`.)
-4. Deploy. Once live, copy the exact Render URL.
-5. In the [Spotify Dashboard](https://developer.spotify.com/dashboard), open your app → **Settings** → **Redirect URIs** → add `https://your-app-name.onrender.com/auth/callback` (must match `SPOTIFY_REDIRECT_URI` exactly, including trailing slashes or lack thereof). Save.
-6. Back in Render, if you changed any environment variable after the first deploy, click **Manual Deploy → Redeploy** — Render does not hot-reload env var changes.
-7. Run through the **Render QA checklist** above against the live URL.
+- Daily active users.
+- Voice commands per day.
+- Song-search outcomes.
+- Search success rate.
+- Playback attempt-to-start conversion.
+- Voice interaction patterns.
+- User retention and repeat engagement.
 
----
+### Analytics Configuration
 
-## 🌱 Next Steps / Improvements
+The PostHog project key is used by the frontend SDK as a client-side ingestion key.
 
-**Improve voice accuracy:**
-- Add a small fuzzy-matching step (e.g. Levenshtein distance) before treating a phrase as "not the wake word" to tolerate mishearing "Akon" as similar-sounding words.
-- Let users pick a different wake word in the UI.
+The current configuration uses:
 
-**Add smarter (LLM-based) command parsing:**
-- Instead of simple string matching in `app.js`, send the transcript to an LLM with a small function-calling schema (`{action: "play"|"pause"|"next"|..., query?: string}`) so phrasing like *"Akon can you skip this one"* still works.
-- This is a natural place to plug in the Anthropic API — happy to wire that up next.
+```text
+https://us.i.posthog.com
+```
 
-**Deploy it:**
-- Host the Node/Express backend on something like Render, Railway, or Fly.io.
-- Update `SPOTIFY_REDIRECT_URI` (both in `.env` and in your Spotify Dashboard app settings) to your deployed HTTPS URL — Spotify requires HTTPS redirect URIs in production.
-- Swap the in-memory token store for a real session store if more than one person will use it.
+The project key is configured in:
+
+```text
+frontend/analytics.js
+```
+
+This is a public client-side project token, not a private PostHog personal API key. Never put private API keys or administrative credentials in frontend code.
+
+**Consent:** Analytics capture is configured to be opt-out by default. The current prototype exposes `IrisAnalytics.optIn()` and `IrisAnalytics.optOut()`, but a visible user-facing consent interface still needs to be implemented before broader external testing.
 
 ---
 
-Now ask me for the next step, and I will guide you step-by-step for API integration.
+## Testing
+
+Iris includes automated tests for search matching, intent parsing, frontend contracts, microphone behaviour and music ducking.
+
+Run the complete test suite:
+
+```bash
+npm test
+```
+
+The test command runs:
+
+1. `matching.test.js` — music search and ranking behaviour.
+2. `contract.test.js` — frontend DOM, APIs, routes and script contracts.
+3. `voice.test.js` — wake-word detection and microphone resilience.
+4. `duck.test.js` — volume ducking and restoration behaviour.
+
+These tests run without live Spotify credentials.
+
+### Optional Browser Smoke Tests
+
+```bash
+npm run smoke
+```
+
+The smoke test uses Playwright when available. Playwright is not installed automatically as a project dependency.
+
+### Manual Testing
+
+After running Iris locally:
+
+- Connect Spotify.
+- Verify that the player reaches the ready state.
+- Allow microphone access.
+- Test wake-word detection.
+- Test tap-to-talk.
+- Play a known English song.
+- Play a Hindi or Hinglish song.
+- Test ambiguous search results.
+- Test pause, resume, next and previous.
+- Test volume controls and mute.
+- Check microphone recovery after interruptions.
+- Verify PostHog events in the project Activity view.
+
+---
+
+## Deployment — Render
+
+Iris uses an Express backend that also serves the frontend. Deploy it as a **Render Web Service**.
+
+### 1. Create a Render Web Service
+
+1. Open [Render](https://render.com/).
+2. Create a new Web Service.
+3. Connect your GitHub account.
+4. Select `snorelax08/Iris-v7`.
+5. Select the `main` branch.
+
+### 2. Configure Build Settings
+
+| Setting | Value |
+|---|---|
+| Runtime | Node |
+| Build Command | `npm install` |
+| Start Command | `npm start` |
+| Branch | `main` |
+
+### 3. Configure Render Environment Variables
+
+In Render → Environment, configure:
+
+```env
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+
+SPOTIFY_REDIRECT_URI=https://your-service-name.onrender.com/auth/callback
+```
+
+Do not manually set `PORT` unless required by your hosting configuration. Render provides it automatically.
+
+Add the optional Anthropic variables only if the AI fallback is enabled.
+
+### 4. Update Spotify Redirect URI
+
+In the Spotify Developer Dashboard, register the exact production callback:
+
+```text
+https://your-service-name.onrender.com/auth/callback
+```
+
+The production redirect URI in Render and Spotify must match exactly.
+
+### 5. Deploy
+
+Deploy the service and open the generated Render URL.
+
+Test:
+
+- Application loading.
+- Spotify OAuth.
+- Player initialization.
+- Microphone permission.
+- Wake-word recognition.
+- Song discovery.
+- Playback controls.
+- PostHog event delivery.
+
+The existing PostHog dashboard does not need to be recreated. Production events will appear in the same project when the deployed application uses the existing PostHog configuration and users have opted in.
+
+---
+
+## Security & Production Readiness
+
+Iris is currently a prototype, not a fully hardened multi-user production service.
+
+The current Spotify authentication implementation has important limitations:
+
+- OAuth access and refresh tokens are stored in one shared in-memory token store.
+- Tokens are not isolated per user or browser session.
+- Authentication state is generated but not validated in the OAuth callback.
+- Server restarts clear the in-memory token store.
+- The current implementation is intended for local development and controlled testing.
+
+**Do not treat the current authentication implementation as suitable for unrestricted multi-user deployment.**
+
+Before opening Iris to independent users, implement:
+
+1. Session-based, per-user Spotify authentication.
+2. Secure server-side session storage.
+3. OAuth state validation and CSRF protection.
+4. Secure, HTTP-only session cookies.
+5. Persistent and appropriately protected token storage.
+6. Authentication and API rate limiting.
+7. A user-facing analytics consent interface.
+8. Appropriate production privacy and data-retention settings.
+
+### Credential Handling
+
+- Keep Spotify Client Secrets on the server.
+- Store production credentials in Render environment variables.
+- Never commit `.env` files or private API keys.
+- Keep browser-side PostHog project tokens separate from private administrative credentials.
+- Do not expose private credentials in logs, screenshots or debugging endpoints.
+
+---
+
+## Current Limitations
+
+- Spotify Web Playback SDK requires Spotify Premium.
+- Music playback takes place in the browser's Spotify Web Playback SDK device.
+- Iris does not directly control a user's Spotify desktop or mobile application.
+- Speech recognition support varies by browser.
+- Microphone permissions are required.
+- The browser or device must remain active for voice interaction.
+- The current OAuth backend is single-user and in-memory.
+- Analytics requires explicit opt-in in the current implementation.
+
+---
+
+## Roadmap
+
+Iris is being developed iteratively, with an emphasis on improving the product through real user feedback and measurable outcomes.
+
+Potential areas of development include:
+
+- Multi-user authentication and session management.
+- Improved song recognition and multilingual speech support.
+- More reliable voice activation across devices.
+- Better handling of song requests from lyrics and partial phrases.
+- User preferences and personalized music discovery.
+- Product analytics and retention measurement.
+- A dedicated user-facing consent and privacy experience.
+- Expansion into additional voice-assistant capabilities.
+
+---
+
+## Contributing
+
+Iris is an evolving project.
+
+For development:
+
+```bash
+git clone https://github.com/snorelax08/Iris-v7.git
+cd Iris-v7
+npm install
+npm test
+```
+
+Keep changes focused, preserve existing test coverage and avoid committing credentials or local environment files.
+
+---
+
+## Acknowledgements
+
+- [Spotify Developer Platform](https://developer.spotify.com/documentation/web-api)
+- [Spotify Web Playback SDK](https://developer.spotify.com/documentation/web-playback-sdk)
+- [PostHog](https://posthog.com/)
+- [Anthropic](https://www.anthropic.com/) — optional AI-assisted song resolution
+- [Node.js](https://nodejs.org/)
+- [Express](https://expressjs.com/)
+
+---
+
+<p align="center">
+  <b>Iris — Your music, one conversation away.</b>
+  <br />
+  Built with curiosity, music and a lot of iteration.
+</p>
