@@ -2,13 +2,12 @@
 (function () {
   "use strict";
 
-  // Replace ONLY this value with your PostHog Project API token.
-  const POSTHOG_KEY = "phc_rVP7k3RMbWSJb8pgFaXsGgiA79Xxyxw74vEp3wMhWxKd".trim();
+  // Keep your existing PostHog Project API token here.
+  const POSTHOG_KEY = "PASTE_YOUR_EXISTING_POSTHOG_PROJECT_TOKEN_HERE".trim();
 
   const API_HOST = "https://us.i.posthog.com";
-  const PLACEHOLDER = "PASTE_YOUR_PROJECT_TOKEN_HERE";
+  const PLACEHOLDER = "PASTE_YOUR_EXISTING_POSTHOG_PROJECT_TOKEN_HERE";
 
-  // Stop safely if the project token is missing.
   if (!POSTHOG_KEY || POSTHOG_KEY === PLACEHOLDER) {
     console.warn("[Iris Analytics] Project token not configured.");
 
@@ -107,13 +106,14 @@
           "on onFeatureFlags onSessionId identify " +
           "setPersonProperties group resetGroups " +
           "setPersonPropertiesForFlags resetPersonPropertiesForFlags " +
-          "setGroupPropertiesForFlags reset resetGroups " +
-          "get_distinct_id getGroups get_session_id " +
+          "setGroupPropertiesForFlags resetGroups " +
+          "reset get_distinct_id getGroups get_session_id " +
           "get_session_replay_url alias set_config " +
           "startSessionRecording stopSessionRecording " +
           "sessionRecordingStarted captureException loadToolbar " +
           "get_property getSessionProperty createPersonProfile " +
           "opt_in_capturing opt_out_capturing " +
+          "clear_opt_in_out_capturing " +
           "has_opted_in_capturing has_opted_out_capturing " +
           "get_explicit_consent_status is_capturing debug"
         ).split(" ");
@@ -140,8 +140,47 @@
     capture_pageleave: false,
 
     disable_session_recording: true,
+
+    // Enable analytics by default for the private beta.
     opt_out_capturing_by_default: false
   });
+
+  // One-time migration for browsers that were previously opted out
+  // because of the old opt_out_capturing_by_default setting.
+  const MIGRATION_KEY = "iris_beta_analytics_migration_v1";
+
+  function migrateLegacyOptOut() {
+    let alreadyMigrated = false;
+
+    try {
+      alreadyMigrated =
+        localStorage.getItem(MIGRATION_KEY) === "done";
+    } catch (error) {
+      console.warn("[Iris Analytics] Could not read migration status.");
+    }
+
+    if (alreadyMigrated) return;
+
+    try {
+      if (
+        window.posthog &&
+        typeof window.posthog.clear_opt_in_out_capturing === "function"
+      ) {
+        window.posthog.clear_opt_in_out_capturing();
+      }
+    } catch (error) {
+      console.warn("[Iris Analytics] Legacy preference migration failed.");
+      return;
+    }
+
+    try {
+      localStorage.setItem(MIGRATION_KEY, "done");
+    } catch (error) {
+      console.warn("[Iris Analytics] Could not save migration status.");
+    }
+  }
+
+  migrateLegacyOptOut();
 
   // Only these approved events and properties can be captured.
   const allowed = {
@@ -271,7 +310,9 @@
 
     optIn: function () {
       if (window.posthog) {
-        window.posthog.opt_in_capturing();
+        window.posthog.opt_in_capturing({
+          captureEventName: false
+        });
       }
     },
 
