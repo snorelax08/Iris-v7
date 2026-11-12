@@ -3,7 +3,7 @@
   "use strict";
 
   // Keep your existing PostHog Project API token here.
-  const POSTHOG_KEY = "PASTE_YOUR_EXISTING_POSTHOG_PROJECT_TOKEN_HERE".trim();
+  const POSTHOG_KEY = "phc_rVP7k3RMbWSJb8pgFaXsGgiA79Xxyxw74vEp3wMhWxKd".trim();
 
   const API_HOST = "https://us.i.posthog.com";
   const PLACEHOLDER = "PASTE_YOUR_EXISTING_POSTHOG_PROJECT_TOKEN_HERE";
