@@ -140,7 +140,7 @@
     capture_pageleave: false,
 
     disable_session_recording: true,
-    opt_out_capturing_by_default: true
+    opt_out_capturing_by_default: false
   });
 
   // Only these approved events and properties can be captured.
