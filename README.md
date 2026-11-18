@@ -1,160 +1,213 @@
+# Iris v7 — Voice-Controlled AI Music Assistant
 
-# Iris — Voice-Controlled AI Music Assistant
+\<p align="center">
+&#x20; \<img src="frontend/icon.svg" width="100" alt="Iris logo" />
+\</p>
 
-<p align="center">
-  <img src="frontend/icon.svg" width="100" alt="Iris logo" />
-</p>
+\<h3 align="center">Your music. Your voice. Your Iris.\</h3>
 
-<h3 align="center">
-  Your music. Your voice. Your Iris.
-</h3>
+\<p align="center">
+&#x20; A browser-based, voice-first music assistant for discovering music and controlling Spotify through natural-language commands.
+\</p>
 
-<p align="center">
-  A voice-first music assistant that lets you discover, search and control Spotify playback through natural conversation.
-</p>
-
-<p align="center">
-  <b>Wake-word interaction · Hinglish song discovery · Intelligent matching · Spotify Web Playback SDK · Product Analytics</b>
-</p>
+\<p align="center">
+&#x20; \<b>Wake-word interaction · English and Hinglish · Intent recognition · Song matching · Spotify Web Playback SDK\</b>
+\</p>
 
 ---
 
 ## Overview
 
-**Iris** is a browser-based, voice-controlled music assistant designed to make music interaction more natural and effortless.
+**Iris** is a browser-based music assistant designed to make music discovery and playback feel more natural. Instead of navigating menus or typing every search, users can speak requests such as:
 
-Instead of navigating playlists, searching manually or reaching for your phone to control playback, users can simply say what they want to hear.
+> "Iris, play Believer by Imagine Dragons."
 
-Say **"Iris, play Believer"**, and Iris interprets the request, searches Spotify, identifies the most relevant track and starts playback directly in the browser.
+Iris listens for its wake word, recognises the spoken command, interprets the user's intent and—where the relevant execution path is supported—uses Spotify search and playback to fulfil the request.
 
-Iris is built around a simple product idea:
+The product began with a simple idea: **make existing speakers smarter through software, without requiring dedicated smart-speaker hardware.**
 
-> Make existing speakers smarter through software, without requiring users to purchase dedicated smart-speaker hardware.
+Iris v7 combines browser speech recognition, a shared English/Hinglish intent parser, server-side music resolution and Spotify playback. Its parser can classify a broader range of music requests than the currently verified end-to-end execution paths. This README distinguishes those layers rather than implying that every recognised intent is already a complete feature.
 
-The current prototype focuses on voice-controlled music discovery and playback. Its longer-term product vision is to evolve into a broader voice-first assistant.
+## Product experience
 
-## Product Experience
-
-<p align="center">
-  <img src="docs/screens/iris-stage.png" width="85%" alt="Iris application interface" />
-</p>
+\<p align="center">
+&#x20; \<img src="docs/screens/iris-stage.png" width="85%" alt="Iris application interface" />
+\</p>
 
 *The Stage — Iris's immersive, voice-first interface.*
 
-### Core Features
+### Core capabilities
 
-| Feature | Description |
-|---|---|
-| Voice Wake Word | Activate Iris by saying "Iris". |
-| Hands-Free Listening | Listen continuously for voice commands with microphone resilience and automatic recovery. |
-| Tap-to-Talk | Activate listening by tapping the eye, using the listening button or pressing `L`. |
-| Natural Language Commands | Understand common English and Hinglish music commands. |
-| Intelligent Song Discovery | Resolve imperfect, phonetic and transliterated song requests. |
-| Confidence-Based Matching | Rank Spotify search results and avoid playing uncertain matches automatically. |
-| Alternative Suggestions | Present candidate tracks when Iris cannot confidently determine the intended song. |
-| Spotify Playback | Play music directly through the Spotify Web Playback SDK. |
-| Playback Controls | Pause, resume, skip, go back, mute and adjust volume through voice or the interface. |
-| Music Ducking | Automatically lower music volume while Iris listens, then restore it appropriately. |
-| Adaptive Interface | Visual states for idle, listening, thinking, searching, playing and errors. |
-| Diagnostics | Inspect voice activity, authentication status, playback state and search results. |
-| Product Analytics | Track activation, voice interactions, song discovery and playback outcomes through PostHog. |
+| Capability                    | What it does                                                                                          |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Wake word                     | Activates listening when the user says "Iris".                                                        |
+| Hands-free listening          | Keeps voice interaction available and includes microphone recovery behaviour.                         |
+| Tap-to-talk                   | Starts a listening window through the interface or the `L` shortcut.                                  |
+| English and Hinglish commands | Normalises common English and Hinglish phrasing.                                                      |
+| Song discovery                | Parses song and artist requests, including imperfect or phonetic input.                               |
+| Candidate matching            | Ranks Spotify search candidates and uses confidence decisions to avoid blindly choosing weak matches. |
+| Alternative selection         | Supports presenting and selecting alternatives when a request is ambiguous.                           |
+| Spotify playback              | Uses the Spotify Web Playback SDK to play music in the browser.                                       |
+| Playback controls             | Supports pause, resume, next, previous, mute and volume controls in the existing playback flow.       |
+| Music ducking                 | Temporarily lowers playback volume while Iris listens and restores it when appropriate.               |
+| Diagnostics                   | Exposes application, voice, authentication and playback diagnostics.                                  |
+| Product analytics             | Integrates PostHog event tracking for product behaviour.                                              |
 
----
+### Intent recognition: parser versus execution
 
-## How Iris Works
+The shared `shared/intent.js` module recognises structured command categories. Recognition by the parser does **not** by itself guarantee that the frontend, backend and Spotify controller execute every category.
 
-Iris combines browser-based speech recognition, server-side song resolution and Spotify's playback infrastructure.
+The current parser taxonomy includes:
 
-```mermaid
-flowchart TD
-    A["User speaks to Iris"] --> B["Wake Word Detection"]
-    B --> C["Speech Recognition"]
-    C --> D["Intent Parsing"]
-    D --> E["Song Query"]
-    E --> F["Express Backend"]
-    F --> G["Spotify Search API"]
-    G --> H["Candidate Ranking"]
-    H --> I{"Confidence Gate"}
-    I -->|High confidence| J["Resolve Track"]
-    I -->|Ambiguous| K["Offer Alternatives"]
-    I -->|No match| L["Not Found"]
-    J --> M["Spotify Web Playback SDK"]
-    K --> M
-    M --> N["Music Plays in Browser"]
-    D --> O["PostHog Product Analytics"]
-    H --> O
-    M --> O
-```
+- Track playback and track search
+- Album, playlist and artist requests
+- Playback controls, including pause, resume, next and previous
+- Volume increase, decrease, set and mute
+- Discovery by mood, genre, activity, language and era
+- Similar-music discovery
+- Lyrics-based identification
+- Refinement of a current discovery
+- Clarification, rejection and option selection
 
-### Technology Stack
+Treat categories beyond the existing playback and song-resolution flows as **parser capabilities until their complete application path has been verified**. In particular, a parser result such as `PLAY_ALBUM`, `PLAY_PLAYLIST` or `DISCOVER_BY_MOOD` should not be interpreted as proof that Iris can already execute that request end to end.
 
-| Layer | Technologies |
-|---|---|
-| Frontend | HTML, CSS, JavaScript |
-| Speech Recognition | Web Speech API |
-| Backend | Node.js, Express.js |
-| Music Platform | Spotify Web API |
-| Audio Playback | Spotify Web Playback SDK |
-| Authentication | Spotify OAuth 2.0 |
-| Song Resolution | Custom query parsing, ranking and confidence scoring |
-| Optional AI Fallback | Anthropic API |
-| Product Analytics | PostHog |
-| Deployment | Render |
-| Version Control | Git and GitHub |
-| Testing | Node.js test suites, optional Playwright smoke tests |
+## Example voice commands
 
----
+The examples below illustrate the language the intent parser is designed to understand. Actual execution depends on the corresponding application handler being available.
 
-## Voice Interaction
-
-Iris supports a range of music commands in English and common Hinglish phrasing.
-
-### Music Discovery
+### Song requests
 
 ```text
 "Iris, play Believer"
-"Iris, play Stronger by Kanye West"
-"Iris, Kesariya bajao"
-"Iris, ye tune kya kiya"
+"Play Stronger by Kanye West"
+"Play Tum Hi Ho"
+"Kesariya wala gaana bajao"
+"Play Lonely by Akon"
 ```
 
-### Playback Controls
+### Playback and volume controls
 
-| Voice Command | Expected Action |
-|---|---|
-| "Iris, pause" | Pause playback |
-| "Iris, resume" | Resume playback |
-| "Iris, next" | Play the next track |
-| "Iris, previous" | Return to the previous track |
-| "Iris, volume up" | Increase volume |
-| "Iris, volume down" | Decrease volume |
-| "Iris, volume 40" | Set volume to 40% |
-| "Iris, mute" | Mute playback |
-| "Iris, option two" | Select the second suggested track |
+| Command            | Intended action                    |
+| ------------------ | ---------------------------------- |
+| "Pause the music"  | Pause playback                     |
+| "Resume"           | Resume playback                    |
+| "Next song"        | Skip to the next track             |
+| "Previous song"    | Return to the previous track       |
+| "Volume up"        | Increase volume                    |
+| "Volume down"      | Decrease volume                    |
+| "Set volume to 40" | Set volume to 40%                  |
+| "Mute"             | Mute playback                      |
+| "Option two"       | Select the second suggested result |
 
-### Handling Ambiguous Requests
+### Discovery requests recognised by the intent parser
 
-Iris does not simply play the first Spotify search result.
+```text
+"Play something romantic"
+"Play some hip-hop"
+"Play Hindi romantic songs"
+"Play something for the gym"
+"Play 2000s Bollywood songs"
+"Play some chill R&B"
+"Play something slower"
+```
 
-Its resolution pipeline uses:
+### Artist, album and playlist requests recognised by the parser
 
-- Hinglish-aware text normalization.
-- Phonetic matching for imperfect speech recognition.
-- Structured song-title and artist extraction.
-- Candidate ranking and deduplication.
-- Filtering for irrelevant results, including karaoke and tribute versions when inappropriate.
-- Confidence thresholds to decide whether to play, offer alternatives or return no match.
-- An optional LLM fallback for difficult or fragmented queries.
+```text
+"Play songs by Arijit Singh"
+"Play an album by The Weeknd"
+"Play the latest album by The Weeknd"
+"Play a playlist for studying"
+```
 
-The LLM fallback can suggest candidate titles and artists, but those candidates still pass through the matching and confidence pipeline.
+### Lyrics and Hinglish examples
 
----
+```text
+"Play that song that goes I got the power"
+"Koi romantic gaana chalao"
+"Thoda chill music lagao"
+"Agla gaana play karo"
+"Awaaz badhao"
+```
 
-## Project Architecture
+### Conversational refinement examples
+
+The parser includes intent categories for refining a current discovery. A multi-turn experience also requires the application to retain and pass the relevant conversation context.
+
+```text
+"Play something romantic"
+"Something more upbeat"
+"Play another one"
+"Something in Hindi"
+```
+
+Do not assume these follow-ups preserve context in every application flow unless that behaviour has been verified in the running application.
+
+## How Iris works
+
+```mermaid
+flowchart TD
+    A["User speaks"] --> B["Wake-word / listening flow"]
+    B --> C["Browser speech recognition"]
+    C --> D["Shared intent parser"]
+    D --> E{"Command category"}
+    E -->|Track request| F["Music query resolution"]
+    E -->|Playback control| G["Playback command handler"]
+    E -->|Discovery / other intent| H["Corresponding handler, if implemented"]
+    F --> I["Spotify search"]
+    I --> J["Candidate ranking and confidence decision"]
+    J --> K{"Resolution"}
+    K -->|Confident match| L["Spotify playback"]
+    K -->|Ambiguous| M["Offer alternatives"]
+    K -->|No match| N["Not found"]
+    G --> L
+    H --> O["Handler-dependent outcome"]
+    D --> P["Product analytics"]
+    J --> P
+    L --> P
+```
+
+### Intent parser design
+
+`shared/intent.js` is shared by browser and Node.js code. It normalises a spoken command and returns a structured result that can include:
+
+- A backward-compatible command `type`
+- A structured `intent` category
+- A confidence value
+- Extracted entities
+- Extracted music preferences
+- References to conversational context, where applicable
+- Intent-specific fields such as a search query, volume value or option index
+
+The parser includes English/Hinglish normalisation, command and control recognition, preference lexicons, and rules for distinguishing explicit playback commands from other phrases. Existing consumers may continue to use the legacy `type` field while newer code can inspect the structured `intent`.
+
+### Song-resolution pipeline
+
+For track requests, the music-resolution layer uses query parsing, Spotify search, candidate scoring and confidence decisions. The goal is to avoid playing the first result without considering whether it matches the requested title and artist.
+
+An optional Anthropic-powered fallback may help generate candidate interpretations for difficult or fragmented requests. The normal search and matching pipeline does not require this optional fallback.
+
+## Technology stack
+
+| Layer                | Technologies                                            |
+| -------------------- | ------------------------------------------------------- |
+| Frontend             | HTML, CSS, JavaScript                                   |
+| Speech recognition   | Browser Web Speech API                                  |
+| Backend              | Node.js, Express                                        |
+| Music catalogue      | Spotify Web API                                         |
+| Audio playback       | Spotify Web Playback SDK                                |
+| Authentication       | Spotify OAuth 2.0                                       |
+| Intent recognition   | Shared JavaScript parser (`shared/intent.js`)           |
+| Song resolution      | Query parsing, candidate ranking and confidence scoring |
+| Optional AI fallback | Anthropic API                                           |
+| Product analytics    | PostHog                                                 |
+| Deployment           | Render                                                  |
+| Testing              | Node.js test suites; optional Playwright smoke tests    |
+
+## Project structure
 
 ```text
 Iris-v7/
-│
 ├── frontend/
 │   ├── index.html
 │   ├── style.css
@@ -171,14 +224,11 @@ Iris-v7/
 │   ├── iris.js
 │   ├── manifest.json
 │   └── icon.svg
-│
 ├── backend/
 │   ├── server.js
 │   ├── auth.js
-│   │
 │   ├── routes/
 │   │   └── resolve.js
-│   │
 │   └── music/
 │       ├── llm.js
 │       ├── query.js
@@ -186,20 +236,16 @@ Iris-v7/
 │       ├── resolver.js
 │       ├── spotifySearch.js
 │       └── text.js
-│
 ├── shared/
 │   └── intent.js
-│
 ├── test/
 │   ├── matching.test.js
 │   ├── contract.test.js
 │   ├── voice.test.js
 │   ├── duck.test.js
 │   └── smoke/
-│
 ├── docs/
 │   └── MANUAL_CHECKS.md
-│
 ├── .env.example
 ├── .gitignore
 ├── package.json
@@ -210,93 +256,91 @@ Iris-v7/
 └── README.md
 ```
 
-### Important Modules
+### Important modules
 
-| Module | Responsibility |
-|---|---|
-| `frontend/app.js` | Connects voice commands, Spotify playback and application state. |
-| `frontend/voice.js` | Wake-word detection, speech recognition, tap-to-talk and microphone recovery. |
-| `frontend/spotify.js` | Initializes the Spotify player and controls playback. |
-| `frontend/analytics.js` | Initializes PostHog and captures approved product events. |
-| `frontend/stage.js` | Drives the primary Iris interface and interaction states. |
-| `frontend/duck.js` | Handles volume reduction and restoration while listening. |
-| `frontend/flags.js` | Controls optional frontend features. |
-| `frontend/iris.js` | Renders the animated Iris eye. |
-| `backend/server.js` | Express server, static frontend hosting and API routes. |
-| `backend/auth.js` | Spotify OAuth, token refresh and authentication diagnostics. |
-| `backend/music/query.js` | Parses and normalizes music search queries. |
-| `backend/music/rank.js` | Scores and ranks candidate tracks. |
-| `backend/music/resolver.js` | Coordinates search, ranking and confidence decisions. |
-| `backend/music/llm.js` | Optional AI-assisted candidate generation. |
-| `shared/intent.js` | Shared English and Hinglish command interpretation. |
+| Module                      | Responsibility                                                                |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `frontend/app.js`           | Connects voice commands, application state and playback actions.              |
+| `frontend/voice.js`         | Wake-word detection, speech recognition, tap-to-talk and microphone recovery. |
+| `frontend/spotify.js`       | Initialises the Spotify player and controls playback.                         |
+| `frontend/analytics.js`     | Initialises PostHog and captures configured product events.                   |
+| `frontend/stage.js`         | Drives the primary Iris interface and interaction states.                     |
+| `frontend/duck.js`          | Handles volume reduction and restoration while listening.                     |
+| `frontend/flags.js`         | Controls optional frontend features.                                          |
+| `frontend/iris.js`          | Renders the animated Iris eye.                                                |
+| `backend/server.js`         | Express server, static frontend hosting and API routes.                       |
+| `backend/auth.js`           | Spotify OAuth, token handling and authentication diagnostics.                 |
+| `backend/music/query.js`    | Parses and normalises music search queries.                                   |
+| `backend/music/rank.js`     | Scores and ranks candidate tracks.                                            |
+| `backend/music/resolver.js` | Coordinates search, ranking and confidence decisions.                         |
+| `backend/music/llm.js`      | Optional AI-assisted candidate generation.                                    |
+| `shared/intent.js`          | Shared English/Hinglish command interpretation and structured intent output.  |
 
----
-
-## Getting Started
+## Getting started
 
 ### Requirements
 
-- Node.js 16 or later.
+- Node.js (use a currently supported LTS release).
 - npm.
-- A Spotify account with Premium for Web Playback SDK music streaming.
+- A Spotify account with Premium for Spotify Web Playback SDK streaming.
 - A Spotify Developer application.
 - Google Chrome or Microsoft Edge.
-- A working microphone.
-- A network connection.
+- A working microphone and network connection.
 
-### 1. Clone the Repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/snorelax08/Iris-v7.git
 cd Iris-v7
 ```
 
-### 2. Install Dependencies
+### 2. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 3. Create a Spotify Developer Application
+### 3. Create a Spotify Developer application
 
 1. Open the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
-2. Create a new application.
-3. Open its settings.
-4. Copy the Spotify Client ID and Client Secret.
-5. Register the following local redirect URI:
+2. Create an application.
+3. Copy its Client ID and Client Secret.
+4. Add the local redirect URI used by your environment configuration.
+
+For the default local setup documented in the project:
 
 ```text
 http://127.0.0.1:8888/auth/callback
 ```
 
-The redirect URI must match the value configured in your environment variables exactly.
+The redirect URI in the Spotify Developer Dashboard must exactly match `SPOTIFY_REDIRECT_URI`.
 
-### 4. Configure Environment Variables
+### 4. Configure environment variables
 
 Create a local `.env` file from `.env.example`.
 
-On macOS/Linux:
+macOS/Linux:
 
 ```bash
 cp .env.example .env
 ```
 
-On Windows PowerShell:
+Windows PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Configure the following:
+Set the Spotify credentials and other required values according to `.env.example`. The local callback and port commonly use:
 
 ```env
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-
 SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/auth/callback
-
 PORT=8888
 ```
+
+The current authentication implementation may also require a valid `TOKEN_ENCRYPTION_KEY`. Check `.env.example` and `backend/auth.js` for the exact format and required settings. Do not reuse or replace a production encryption key for local testing.
 
 Optional AI-assisted song resolution:
 
@@ -312,290 +356,181 @@ Optional Spotify search configuration:
 AKON_SEARCH_LIMIT=10
 ```
 
-The Anthropic configuration is optional. Iris can use its normal search and matching pipeline without it.
+The Anthropic configuration is optional; the normal search and matching pipeline is designed to work without it.
 
-**Never commit your actual `.env` file or private API credentials to GitHub.**
+**Never commit `.env` files, Spotify secrets, encryption keys or private API credentials.**
 
-### 5. Run Iris
+### 5. Start Iris
 
 ```bash
 npm start
 ```
 
-The Express server starts on port `8888` by default.
-
-Open:
+The documented default local port is `8888`. Open:
 
 ```text
 http://127.0.0.1:8888
 ```
 
-### 6. Connect Spotify
+If your `.env` or server configuration uses a different port, use the URL printed or configured by your local application.
+
+### 6. Connect Spotify and start listening
 
 1. Select **Connect Spotify**.
-2. Sign in to Spotify.
-3. Approve the requested permissions.
-4. Wait for the Spotify Web Playback SDK to initialize.
-5. Allow microphone access when prompted.
+2. Sign in and approve the requested permissions.
+3. Wait for the Spotify Web Playback SDK player to initialise.
+4. Allow microphone access in the browser.
+5. Say "Iris, play Believer" or use tap-to-talk.
 
-### 7. Start Using Iris
+## Product analytics — PostHog
 
-Say:
+Iris integrates with [PostHog](https://posthog.com/) to understand product usage and identify friction in the voice and playback experience.
 
-```text
-Iris, play Believer
-```
+The existing README describes a client-side PostHog SDK configuration with automatic page-view tracking, autocapture, page-leave capture and session recording disabled. Verify the current `frontend/analytics.js` configuration before changing analytics behaviour.
 
-Or tap the central Iris eye to use tap-to-talk.
+Events documented by the project include:
 
----
+- `app_opened`
+- `spotify_auth_succeeded`
+- `spotify_auth_failed`
+- `player_ready`
+- `voice_session_started`
+- `voice_session_ended`
+- `voice_command_received`
+- `intent_parsed`
+- `song_search_completed`
+- `song_option_selected`
+- `playback_attempted`
+- `playback_started`
+- `playback_failed`
+- `command_action_completed`
 
-## Product Analytics — PostHog
+The PostHog project key used in browser code is a client-side ingestion key, not a private administrative API key. Never expose private PostHog credentials in frontend code.
 
-Iris integrates with [PostHog](https://posthog.com/) to understand how users interact with the product.
-
-The objective is to measure product behaviour and identify areas where users encounter friction.
-
-### Analytics Architecture
-
-The application uses a client-side PostHog SDK with a controlled event allowlist.
-
-Automatic page-view tracking, autocapture, page-leave capture and session recording are disabled in the current configuration.
-
-### Tracked Events
-
-| Event | Purpose |
-|---|---|
-| `app_opened` | Tracks application launches. |
-| `spotify_auth_succeeded` | Tracks successful Spotify authentication. |
-| `spotify_auth_failed` | Tracks authentication failures. |
-| `player_ready` | Tracks successful player initialization. |
-| `voice_session_started` | Tracks the beginning of a listening session. |
-| `voice_session_ended` | Tracks when a listening session ends. |
-| `voice_command_received` | Tracks received voice commands. |
-| `intent_parsed` | Tracks intent interpretation. |
-| `song_search_completed` | Tracks song-resolution results. |
-| `song_option_selected` | Tracks alternative selection. |
-| `playback_attempted` | Tracks playback requests. |
-| `playback_started` | Tracks confirmed playback starts. |
-| `playback_failed` | Tracks playback failures. |
-| `command_action_completed` | Tracks completion of playback-control actions. |
-
-### Key Product Metrics
-
-The PostHog dashboard is designed to measure:
-
-- Daily active users.
-- Voice commands per day.
-- Song-search outcomes.
-- Search success rate.
-- Playback attempt-to-start conversion.
-- Voice interaction patterns.
-- User retention and repeat engagement.
-
-### Analytics Configuration
-
-The PostHog project key is used by the frontend SDK as a client-side ingestion key.
-
-The current configuration uses:
-
-```text
-https://us.i.posthog.com
-```
-
-The project key is configured in:
-
-```text
-frontend/analytics.js
-```
-
-This is a public client-side project token, not a private PostHog personal API key. Never put private API keys or administrative credentials in frontend code.
-
-**Consent:** Analytics capture is configured to be opt-out by default. The current prototype exposes `IrisAnalytics.optIn()` and `IrisAnalytics.optOut()`, but a visible user-facing consent interface still needs to be implemented before broader external testing.
-
----
+Review the current analytics implementation and user-consent experience before using analytics with external users.
 
 ## Testing
 
-Iris includes automated tests for search matching, intent parsing, frontend contracts, microphone behaviour and music ducking.
+The project includes automated test suites for matching, application contracts, voice behaviour and music ducking.
 
-Run the complete test suite:
+Run the complete suite:
 
 ```bash
 npm test
 ```
 
-The test command runs:
+The test script currently runs:
 
-1. `matching.test.js` — music search and ranking behaviour.
-2. `contract.test.js` — frontend DOM, APIs, routes and script contracts.
-3. `voice.test.js` — wake-word detection and microphone resilience.
-4. `duck.test.js` — volume ducking and restoration behaviour.
+1. `node test/matching.test.js` — song matching and resolution behaviour.
+2. `node test/contract.test.js` — frontend DOM, scripts, APIs and route contracts.
+3. `node test/voice.test.js` — wake-word detection and microphone lifecycle behaviour.
+4. `node test/duck.test.js` — volume ducking and restoration behaviour.
 
-These tests run without live Spotify credentials.
+Run an individual suite with:
 
-### Optional Browser Smoke Tests
+```bash
+node test/matching.test.js
+node test/contract.test.js
+node test/voice.test.js
+node test/duck.test.js
+```
+
+These automated tests do not, by themselves, prove that every parser intent is integrated with a live Spotify execution path. Perform manual testing with a connected Spotify account as well.
+
+### Manual testing
+
+- Connect Spotify and verify the player reaches its ready state.
+- Allow microphone access.
+- Test wake-word detection and tap-to-talk.
+- Play a known English-language track.
+- Play a Hindi or Hinglish track.
+- Test imperfect song titles and artist names.
+- Test ambiguous search results and alternative selection.
+- Test pause, resume, next and previous.
+- Test volume controls and mute.
+- Test microphone recovery after interruptions.
+- Verify analytics events in PostHog, subject to the project's consent configuration.
+- Test discovery and conversational requests individually; record parser recognition separately from successful playback.
+
+### Optional browser smoke tests
 
 ```bash
 npm run smoke
 ```
 
-The smoke test uses Playwright when available. Playwright is not installed automatically as a project dependency.
-
-### Manual Testing
-
-After running Iris locally:
-
-- Connect Spotify.
-- Verify that the player reaches the ready state.
-- Allow microphone access.
-- Test wake-word detection.
-- Test tap-to-talk.
-- Play a known English song.
-- Play a Hindi or Hinglish song.
-- Test ambiguous search results.
-- Test pause, resume, next and previous.
-- Test volume controls and mute.
-- Check microphone recovery after interruptions.
-- Verify PostHog events in the project Activity view.
-
----
+The smoke test uses Playwright when available. Check `package.json` and the smoke-test documentation for its setup requirements.
 
 ## Deployment — Render
 
-Iris uses an Express backend that also serves the frontend. Deploy it as a **Render Web Service**.
+Iris uses an Express backend that also serves the frontend. The project has been deployed as a Render Web Service.
 
-### 1. Create a Render Web Service
+Typical Render settings:
 
-1. Open [Render](https://render.com/).
-2. Create a new Web Service.
-3. Connect your GitHub account.
-4. Select `snorelax08/Iris-v7`.
-5. Select the `main` branch.
+| Setting       | Value         |
+| ------------- | ------------- |
+| Runtime       | Node          |
+| Build command | `npm install` |
+| Start command | `npm start`   |
+| Branch        | `main`        |
 
-### 2. Configure Build Settings
+Configure the Spotify credentials and all other required environment variables in the Render service's environment settings. Do not commit production secrets.
 
-| Setting | Value |
-|---|---|
-| Runtime | Node |
-| Build Command | `npm install` |
-| Start Command | `npm start` |
-| Branch | `main` |
-
-### 3. Configure Render Environment Variables
-
-In Render → Environment, configure:
-
-```env
-SPOTIFY_CLIENT_ID=your_spotify_client_id
-SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-
-SPOTIFY_REDIRECT_URI=https://your-service-name.onrender.com/auth/callback
-```
-
-Do not manually set `PORT` unless required by your hosting configuration. Render provides it automatically.
-
-Add the optional Anthropic variables only if the AI fallback is enabled.
-
-### 4. Update Spotify Redirect URI
-
-In the Spotify Developer Dashboard, register the exact production callback:
+The production Spotify callback must match the URL configured in both Render and the Spotify Developer Dashboard:
 
 ```text
-https://your-service-name.onrender.com/auth/callback
+https://YOUR-SERVICE.onrender.com/auth/callback
 ```
 
-The production redirect URI in Render and Spotify must match exactly.
+After deployment, verify application loading, Spotify OAuth, player initialisation, microphone permissions, song resolution, playback controls and analytics delivery. A successful GitHub merge does not by itself prove that a deployment completed successfully.
 
-### 5. Deploy
+## Security and production considerations
 
-Deploy the service and open the generated Render URL.
+Iris handles Spotify credentials and user-authorised playback. Authentication and token handling must be reviewed against the current implementation before the service is exposed to additional users.
 
-Test:
+Important areas to verify include:
 
-- Application loading.
-- Spotify OAuth.
-- Player initialization.
-- Microphone permission.
-- Wake-word recognition.
-- Song discovery.
-- Playback controls.
-- PostHog event delivery.
+- OAuth state generation and validation.
+- Session isolation between browsers and users.
+- Secure session-cookie settings.
+- Token encryption and encryption-key management.
+- Access-token expiry and refresh behaviour.
+- Persistent session storage and database configuration.
+- Logout and token revocation behaviour.
+- Rate limiting and safe error handling.
+- Avoiding secrets and sensitive tokens in logs.
+- Analytics consent and data-retention practices.
 
-The existing PostHog dashboard does not need to be recreated. Production events will appear in the same project when the deployed application uses the existing PostHog configuration and users have opted in.
+Do not assume that a local test or passing unit tests establish production security or multi-user readiness. Keep production credentials in the hosting provider's secret environment configuration, never in source control.
 
----
+## Current limitations
 
-## Security & Production Readiness
-
-Iris is currently a prototype, not a fully hardened multi-user production service.
-
-The current Spotify authentication implementation has important limitations:
-
-- OAuth access and refresh tokens are stored in one shared in-memory token store.
-- Tokens are not isolated per user or browser session.
-- Authentication state is generated but not validated in the OAuth callback.
-- Server restarts clear the in-memory token store.
-- The current implementation is intended for local development and controlled testing.
-
-**Do not treat the current authentication implementation as suitable for unrestricted multi-user deployment.**
-
-Before opening Iris to independent users, implement:
-
-1. Session-based, per-user Spotify authentication.
-2. Secure server-side session storage.
-3. OAuth state validation and CSRF protection.
-4. Secure, HTTP-only session cookies.
-5. Persistent and appropriately protected token storage.
-6. Authentication and API rate limiting.
-7. A user-facing analytics consent interface.
-8. Appropriate production privacy and data-retention settings.
-
-### Credential Handling
-
-- Keep Spotify Client Secrets on the server.
-- Store production credentials in Render environment variables.
-- Never commit `.env` files or private API keys.
-- Keep browser-side PostHog project tokens separate from private administrative credentials.
-- Do not expose private credentials in logs, screenshots or debugging endpoints.
-
----
-
-## Current Limitations
-
-- Spotify Web Playback SDK requires Spotify Premium.
-- Music playback takes place in the browser's Spotify Web Playback SDK device.
-- Iris does not directly control a user's Spotify desktop or mobile application.
-- Speech recognition support varies by browser.
-- Microphone permissions are required.
-- The browser or device must remain active for voice interaction.
-- The current OAuth backend is single-user and in-memory.
-- Analytics requires explicit opt-in in the current implementation.
-
----
+- Spotify Web Playback SDK streaming requires Spotify Premium.
+- Playback takes place through the browser's Spotify Web Playback SDK device.
+- Browser speech recognition support varies by browser and operating system.
+- Microphone permission is required for voice interaction.
+- The browser/device must remain active for continuous voice interaction.
+- Parser recognition does not guarantee that every discovery, album, playlist, artist or conversational intent has a complete execution handler.
+- Live Spotify behaviour and authentication should be tested separately from automated unit tests.
 
 ## Roadmap
 
-Iris is being developed iteratively, with an emphasis on improving the product through real user feedback and measurable outcomes.
+Potential areas for future development include:
 
-Potential areas of development include:
+- More robust multi-user authentication and session management.
+- Better multilingual and Indian-accent speech handling.
+- More reliable wake-word activation across devices.
+- Improved song identification from lyrics and partial phrases.
+- End-to-end mood, genre, activity, language and era discovery.
+- Context-aware conversational follow-ups and user preferences.
+- Expanded album, artist and playlist playback flows.
+- Stronger product analytics, retention measurement and user consent controls.
+- Exploring a companion agent skill for AI coding agents and agent marketplaces.
 
-- Multi-user authentication and session management.
-- Improved song recognition and multilingual speech support.
-- More reliable voice activation across devices.
-- Better handling of song requests from lyrics and partial phrases.
-- User preferences and personalized music discovery.
-- Product analytics and retention measurement.
-- A dedicated user-facing consent and privacy experience.
-- Expansion into additional voice-assistant capabilities.
-
----
+An agent-skill distribution is an exploratory possibility, not a current Iris integration. The primary product remains the browser-based voice music assistant.
 
 ## Contributing
 
-Iris is an evolving project.
-
-For development:
+Iris is an evolving project. Contributions should be focused, tested and consistent with the existing architecture.
 
 ```bash
 git clone https://github.com/snorelax08/Iris-v7.git
@@ -604,9 +539,7 @@ npm install
 npm test
 ```
 
-Keep changes focused, preserve existing test coverage and avoid committing credentials or local environment files.
-
----
+Please preserve existing test coverage, document behavioural changes and never commit credentials or local environment files.
 
 ## Acknowledgements
 
@@ -619,8 +552,4 @@ Keep changes focused, preserve existing test coverage and avoid committing crede
 
 ---
 
-<p align="center">
-  <b>Iris — Your music, one conversation away.</b>
-  <br />
-  Built with curiosity, music and a lot of iteration.
-</p>
+\<p align="center">   \<b>Iris — Your music, one conversation away.\</b>\<br />   Built with curiosity, music and a lot of iteration. \</p>
