@@ -1,18 +1,12 @@
 # Iris v7 — Voice-Controlled AI Music Assistant
 
-\<p align="center">
-&#x20; \<img src="frontend/icon.svg" width="100" alt="Iris logo" />
-\</p>
+![Iris logo](frontend/icon.svg)
 
-\<h3 align="center">Your music. Your voice. Your Iris.\</h3>
+### Your music. Your voice. Your Iris.
 
-\<p align="center">
-&#x20; A browser-based, voice-first music assistant for discovering music and controlling Spotify through natural-language commands.
-\</p>
+A browser-based, voice-first music assistant for discovering music and controlling Spotify through natural-language commands.
 
-\<p align="center">
-&#x20; \<b>Wake-word interaction · English and Hinglish · Intent recognition · Song matching · Spotify Web Playback SDK\</b>
-\</p>
+**Wake-word interaction · English and Hinglish · Intent recognition · Song matching · Spotify Web Playback SDK**
 
 ---
 
@@ -30,28 +24,26 @@ Iris v7 combines browser speech recognition, a shared English/Hinglish intent pa
 
 ## Product experience
 
-\<p align="center">
-&#x20; \<img src="docs/screens/iris-stage.png" width="85%" alt="Iris application interface" />
-\</p>
+![Iris application interface](docs/screens/iris-stage.png)
 
 *The Stage — Iris's immersive, voice-first interface.*
 
 ### Core capabilities
 
-| Capability                    | What it does                                                                                          |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Wake word                     | Activates listening when the user says "Iris".                                                        |
-| Hands-free listening          | Keeps voice interaction available and includes microphone recovery behaviour.                         |
-| Tap-to-talk                   | Starts a listening window through the interface or the `L` shortcut.                                  |
-| English and Hinglish commands | Normalises common English and Hinglish phrasing.                                                      |
-| Song discovery                | Parses song and artist requests, including imperfect or phonetic input.                               |
-| Candidate matching            | Ranks Spotify search candidates and uses confidence decisions to avoid blindly choosing weak matches. |
-| Alternative selection         | Supports presenting and selecting alternatives when a request is ambiguous.                           |
-| Spotify playback              | Uses the Spotify Web Playback SDK to play music in the browser.                                       |
-| Playback controls             | Supports pause, resume, next, previous, mute and volume controls in the existing playback flow.       |
-| Music ducking                 | Temporarily lowers playback volume while Iris listens and restores it when appropriate.               |
-| Diagnostics                   | Exposes application, voice, authentication and playback diagnostics.                                  |
-| Product analytics             | Integrates PostHog event tracking for product behaviour.                                              |
+| Capability | What it does |
+|---|---|
+| Wake word | Activates listening when the user says "Iris". |
+| Hands-free listening | Keeps voice interaction available and includes microphone recovery behaviour. |
+| Tap-to-talk | Starts a listening window through the interface or the `L` shortcut. |
+| English and Hinglish commands | Normalises common English and Hinglish phrasing. |
+| Song discovery | Parses song and artist requests, including imperfect or phonetic input. |
+| Candidate matching | Ranks Spotify search candidates and uses confidence decisions to avoid blindly choosing weak matches. |
+| Alternative selection | Supports presenting and selecting alternatives when a request is ambiguous. |
+| Spotify playback | Uses the Spotify Web Playback SDK to play music in the browser. |
+| Playback controls | Supports pause, resume, next, previous, mute and volume controls in the existing playback flow. |
+| Music ducking | Temporarily lowers playback volume while Iris listens and restores it when appropriate. |
+| Diagnostics | Exposes application, voice, authentication and playback diagnostics. |
+| Product analytics | Integrates PostHog event tracking for product behaviour. |
 
 ### Intent recognition: parser versus execution
 
@@ -87,17 +79,17 @@ The examples below illustrate the language the intent parser is designed to unde
 
 ### Playback and volume controls
 
-| Command            | Intended action                    |
-| ------------------ | ---------------------------------- |
-| "Pause the music"  | Pause playback                     |
-| "Resume"           | Resume playback                    |
-| "Next song"        | Skip to the next track             |
-| "Previous song"    | Return to the previous track       |
-| "Volume up"        | Increase volume                    |
-| "Volume down"      | Decrease volume                    |
-| "Set volume to 40" | Set volume to 40%                  |
-| "Mute"             | Mute playback                      |
-| "Option two"       | Select the second suggested result |
+| Command | Intended action |
+|---|---|
+| "Pause the music" | Pause playback |
+| "Resume" | Resume playback |
+| "Next song" | Skip to the next track |
+| "Previous song" | Return to the previous track |
+| "Volume up" | Increase volume |
+| "Volume down" | Decrease volume |
+| "Set volume to 40" | Set volume to 40% |
+| "Mute" | Mute playback |
+| "Option two" | Select the second suggested result |
 
 ### Discovery requests recognised by the intent parser
 
@@ -189,20 +181,20 @@ An optional Anthropic-powered fallback may help generate candidate interpretatio
 
 ## Technology stack
 
-| Layer                | Technologies                                            |
-| -------------------- | ------------------------------------------------------- |
-| Frontend             | HTML, CSS, JavaScript                                   |
-| Speech recognition   | Browser Web Speech API                                  |
-| Backend              | Node.js, Express                                        |
-| Music catalogue      | Spotify Web API                                         |
-| Audio playback       | Spotify Web Playback SDK                                |
-| Authentication       | Spotify OAuth 2.0                                       |
-| Intent recognition   | Shared JavaScript parser (`shared/intent.js`)           |
-| Song resolution      | Query parsing, candidate ranking and confidence scoring |
-| Optional AI fallback | Anthropic API                                           |
-| Product analytics    | PostHog                                                 |
-| Deployment           | Render                                                  |
-| Testing              | Node.js test suites; optional Playwright smoke tests    |
+| Layer | Technologies |
+|---|---|
+| Frontend | HTML, CSS, JavaScript |
+| Speech recognition | Browser Web Speech API |
+| Backend | Node.js, Express |
+| Music catalogue | Spotify Web API |
+| Audio playback | Spotify Web Playback SDK |
+| Authentication | Spotify OAuth 2.0 |
+| Intent recognition | Shared JavaScript parser (`shared/intent.js`) |
+| Song resolution | Query parsing, candidate ranking and confidence scoring |
+| Optional AI fallback | Anthropic API |
+| Product analytics | PostHog |
+| Deployment | Render |
+| Testing | Node.js test suites; optional Playwright smoke tests |
 
 ## Project structure
 
@@ -258,23 +250,23 @@ Iris-v7/
 
 ### Important modules
 
-| Module                      | Responsibility                                                                |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| `frontend/app.js`           | Connects voice commands, application state and playback actions.              |
-| `frontend/voice.js`         | Wake-word detection, speech recognition, tap-to-talk and microphone recovery. |
-| `frontend/spotify.js`       | Initialises the Spotify player and controls playback.                         |
-| `frontend/analytics.js`     | Initialises PostHog and captures configured product events.                   |
-| `frontend/stage.js`         | Drives the primary Iris interface and interaction states.                     |
-| `frontend/duck.js`          | Handles volume reduction and restoration while listening.                     |
-| `frontend/flags.js`         | Controls optional frontend features.                                          |
-| `frontend/iris.js`          | Renders the animated Iris eye.                                                |
-| `backend/server.js`         | Express server, static frontend hosting and API routes.                       |
-| `backend/auth.js`           | Spotify OAuth, token handling and authentication diagnostics.                 |
-| `backend/music/query.js`    | Parses and normalises music search queries.                                   |
-| `backend/music/rank.js`     | Scores and ranks candidate tracks.                                            |
-| `backend/music/resolver.js` | Coordinates search, ranking and confidence decisions.                         |
-| `backend/music/llm.js`      | Optional AI-assisted candidate generation.                                    |
-| `shared/intent.js`          | Shared English/Hinglish command interpretation and structured intent output.  |
+| Module | Responsibility |
+|---|---|
+| `frontend/app.js` | Connects voice commands, application state and playback actions. |
+| `frontend/voice.js` | Wake-word detection, speech recognition, tap-to-talk and microphone recovery. |
+| `frontend/spotify.js` | Initialises the Spotify player and controls playback. |
+| `frontend/analytics.js` | Initialises PostHog and captures configured product events. |
+| `frontend/stage.js` | Drives the primary Iris interface and interaction states. |
+| `frontend/duck.js` | Handles volume reduction and restoration while listening. |
+| `frontend/flags.js` | Controls optional frontend features. |
+| `frontend/iris.js` | Renders the animated Iris eye. |
+| `backend/server.js` | Express server, static frontend hosting and API routes. |
+| `backend/auth.js` | Spotify OAuth, token handling and authentication diagnostics. |
+| `backend/music/query.js` | Parses and normalises music search queries. |
+| `backend/music/rank.js` | Scores and ranks candidate tracks. |
+| `backend/music/resolver.js` | Coordinates search, ranking and confidence decisions. |
+| `backend/music/llm.js` | Optional AI-assisted candidate generation. |
+| `shared/intent.js` | Shared English/Hinglish command interpretation and structured intent output. |
 
 ## Getting started
 
@@ -466,12 +458,12 @@ Iris uses an Express backend that also serves the frontend. The project has been
 
 Typical Render settings:
 
-| Setting       | Value         |
-| ------------- | ------------- |
-| Runtime       | Node          |
+| Setting | Value |
+|---|---|
+| Runtime | Node |
 | Build command | `npm install` |
-| Start command | `npm start`   |
-| Branch        | `main`        |
+| Start command | `npm start` |
+| Branch | `main` |
 
 Configure the Spotify credentials and all other required environment variables in the Render service's environment settings. Do not commit production secrets.
 
@@ -552,4 +544,6 @@ Please preserve existing test coverage, document behavioural changes and never c
 
 ---
 
-\<p align="center">   \<b>Iris — Your music, one conversation away.\</b>\<br />   Built with curiosity, music and a lot of iteration. \</p>
+**Iris — Your music, one conversation away.**
+
+Built with curiosity, music and a lot of iteration.
